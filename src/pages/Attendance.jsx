@@ -3,6 +3,7 @@ import Sidebar from '../components/Sidebar';
 
 // import AttendancePage from '../components/HrAttendancePage';
 import EmployeeAttendancePage from '../components/EmployeeAttendancePage';
+import AttendanceManagement from '../components/AttendanceManagement';
 
 const Attendance = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -56,7 +57,7 @@ const Attendance = () => {
 
         {/* Dashboard Content */}
         <main className="flex-1 overflow-y-auto">
-          <EmployeeAttendancePage/>
+          <AttendanceManagement/>
         </main>
       </div>
 

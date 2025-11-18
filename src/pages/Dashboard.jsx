@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
 import SalesDashboard from '../components/SalesDashboard';
+import SuperAdminDashboard from '../components/SuperAdminDashboard';
 
 const Dashboard = () => {
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState(false);
@@ -54,7 +55,7 @@ const Dashboard = () => {
 
         {/* Dashboard Content */}
         <main className="flex-1 overflow-y-auto">
-          <SalesDashboard />
+          <SuperAdminDashboard/>
         </main>
       </div>
 
