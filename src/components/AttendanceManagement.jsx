@@ -2334,10 +2334,96 @@ export function AdvancedAttendanceManagement() {
           onClearAll={clearAllFilters}
         />
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Main Content */}
-          <div className="lg:col-span-2 space-y-8">
-            {/* Controls Panel */}
+        {/* Filters and Recent Activities in same row */}
+        <div className="grid grid-cols-1 xl:grid-cols-4 gap-8">
+
+          {/* Filters Section - 3 columns */}
+          <div className="xl:col-span-3">
+            <div className="bg-gradient-to-br from-white to-blue-25 rounded-3xl border border-blue-100 shadow-lg mb-8">
+      {/* Filters Header */}
+      <div className="flex items-center gap-3 p-6 border-b border-blue-100">
+        <div className="flex items-center gap-2 bg-gradient-to-r from-blue-500 to-blue-600 text-white p-2 rounded-xl">
+          <SlidersHorizontal className="h-5 w-5" />
+          <h3 className="font-bold text-white">Filters</h3>
+        </div>
+      </div>
+
+      {/* Filters */}
+      <div className="p-6">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+          {/* Department */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-3">
+              Department
+            </label>
+            <select
+              value={filters.department || 'All'}
+              onChange={(e) => handleFilterChange('department', e.target.value)}
+              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
+            >
+              {filterConfig.departments.map((dept) => (
+                <option key={dept} value={dept}>
+                  {dept}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Break Status */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-3">
+              Break Status
+            </label>
+            <select
+              value={filters.breakStatus || 'All'}
+              onChange={(e) => handleFilterChange('breakStatus', e.target.value)}
+              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
+            >
+              <option value="All">All</option>
+              <option value="On Break">On Break</option>
+              <option value="Not On Break">Not On Break</option>
+            </select>
+          </div>
+
+          {/* Status */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-3">
+              Status
+            </label>
+            <select
+              value={filters.status || 'All'}
+              onChange={(e) => handleFilterChange('status', e.target.value)}
+              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
+            >
+              {filterConfig.statuses.map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+
+          {/* Time */}
+          <div>
+            <label className="block text-sm font-semibold text-gray-800 mb-3">
+              Time
+            </label>
+            <select
+              value={filters.timeRange || 'All Time'}
+              onChange={(e) => handleFilterChange('timeRange', e.target.value)}
+              className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-white shadow-sm transition-all duration-200"
+            >
+              {filterConfig.timeRanges.map((range) => (
+                <option key={range} value={range}>
+                  {range}
+                </option>
+              ))}
+            </select>
+          </div>
+        </div>
+      </div>
+    </div>
+            
             <div className="bg-gradient-to-br from-white to-blue-25 rounded-3xl p-6 border border-blue-100 shadow-lg">
               <div className="flex flex-col lg:flex-row gap-6 justify-between items-start lg:items-center">
                 <div className="flex flex-col sm:flex-row gap-6 flex-1">
