@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import Sidebar from '../components/Sidebar';
-import SalesDashboard from '../components/SalesDashboard';
+
 import SuperAdminDashboard from '../components/SuperAdminDashboard';
 
 const Dashboard = () => {

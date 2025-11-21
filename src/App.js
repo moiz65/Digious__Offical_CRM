@@ -20,6 +20,7 @@ function App() {
           <Route path="/dashboard" element={<Dashboard />} />
           <Route path="/attendance" element={<Attendance />} />
           <Route path="/activity-tracker" element={<ActivityTracker />} />
+          <Route path="/testdashboard" element={<ActivityTracker />} />
           
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/login" />} />
