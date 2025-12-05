@@ -52,7 +52,9 @@ import {
   RotateCcw,
   Building,
   ChevronUp,
-  ArcElement
+  ArcElement,
+  ShieldUser,
+  Table
 } from 'lucide-react';
 import TopNavMenu from './TopNavMenu';
 
@@ -276,6 +278,438 @@ export const useAttendance = () => {
   };
 };
 
+// Attendance Sheet Component with Month and Year Filters
+const AttendanceSheet = ({ attendanceData, onExport, onFilter }) => {
+  const [filterStatus, setFilterStatus] = useState('all');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [sortBy, setSortBy] = useState('date');
+  const [sortOrder, setSortOrder] = useState('desc');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  // Get available years from attendance data
+  const availableYears = [...new Set(attendanceData.map(record => 
+    new Date(record.date).getFullYear()
+  ))].sort((a, b) => b - a);
+
+  // Get available months for selected year
+  const availableMonths = [...new Set(attendanceData
+    .filter(record => new Date(record.date).getFullYear() === selectedYear)
+    .map(record => new Date(record.date).getMonth())
+  )].sort((a, b) => a - b);
+
+  // Month names for display
+  const monthNames = [
+    'January', 'February', 'March', 'April', 'May', 'June',
+    'July', 'August', 'September', 'October', 'November', 'December'
+  ];
+
+  // Filter and sort attendance data with month and year filters
+  const filteredData = attendanceData
+    .filter(record => {
+      const recordDate = new Date(record.date);
+      const recordMonth = recordDate.getMonth();
+      const recordYear = recordDate.getFullYear();
+      
+      const matchesMonthYear = recordMonth === selectedMonth && recordYear === selectedYear;
+      const matchesStatus = filterStatus === 'all' || record.status === filterStatus;
+      const matchesSearch = record.date.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                          record.remarks.toLowerCase().includes(searchTerm.toLowerCase());
+      
+      return matchesMonthYear && matchesStatus && matchesSearch;
+    })
+    .sort((a, b) => {
+      let aValue, bValue;
+      
+      switch (sortBy) {
+        case 'date':
+          aValue = new Date(a.date);
+          bValue = new Date(b.date);
+          break;
+        case 'hours':
+          aValue = parseFloat(a.hours);
+          bValue = parseFloat(b.hours);
+          break;
+        case 'status':
+          aValue = a.status;
+          bValue = b.status;
+          break;
+        default:
+          aValue = a[sortBy];
+          bValue = b[sortBy];
+      }
+      
+      if (sortOrder === 'asc') {
+        return aValue < bValue ? -1 : aValue > bValue ? 1 : 0;
+      } else {
+        return aValue > bValue ? -1 : aValue < bValue ? 1 : 0;
+      }
+    });
+
+  const handleSort = (column) => {
+    if (sortBy === column) {
+      setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc');
+    } else {
+      setSortBy(column);
+      setSortOrder('asc');
+    }
+  };
+
+  const getStatusInfo = (status) => {
+    switch (status) {
+      case 'present':
+        return { color: 'bg-green-100 text-green-800', text: 'Present' };
+      case 'late':
+        return { color: 'bg-yellow-100 text-yellow-800', text: 'Late' };
+      case 'absent':
+        return { color: 'bg-red-100 text-red-800', text: 'Absent' };
+      case 'off':
+        return { color: 'bg-gray-100 text-gray-800', text: 'Day Off' };
+      default:
+        return { color: 'bg-blue-100 text-blue-800', text: 'Pending' };
+    }
+  };
+
+  const formatDate = (dateString) => {
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', {
+      weekday: 'short',
+      year: 'numeric',
+      month: 'short',
+      day: 'numeric'
+    });
+  };
+
+  // Calculate monthly statistics
+  const monthlyStats = {
+    present: filteredData.filter(r => r.status === 'present').length,
+    late: filteredData.filter(r => r.status === 'late').length,
+    absent: filteredData.filter(r => r.status === 'absent').length,
+    totalWorkingDays: filteredData.filter(r => r.status !== 'off' && r.status !== 'pending').length,
+    totalHours: filteredData.reduce((total, record) => total + parseFloat(record.hours), 0),
+    averageHours: filteredData.length > 0 ? 
+      (filteredData.reduce((total, record) => total + parseFloat(record.hours), 0) / filteredData.length).toFixed(1) : 0
+  };
+
+  const exportToCSV = () => {
+    const headers = ['Date', 'Day', 'Status', 'Check In', 'Check Out', 'Hours', 'Remarks'];
+    const csvContent = [
+      headers.join(','),
+      ...filteredData.map(row => [
+        formatDate(row.date),
+        row.day,
+        getStatusInfo(row.status).text,
+        row.checkIn,
+        row.checkOut,
+        row.hours,
+        `"${row.remarks}"`
+      ].join(','))
+    ].join('\n');
+
+    const blob = new Blob([csvContent], { type: 'text/csv' });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `attendance-${monthNames[selectedMonth]}-${selectedYear}.csv`;
+    a.click();
+    window.URL.revokeObjectURL(url);
+  };
+
+  // Quick month navigation
+  const navigateMonth = (direction) => {
+    if (direction === 'prev') {
+      if (selectedMonth === 0) {
+        setSelectedMonth(11);
+        setSelectedYear(selectedYear - 1);
+      } else {
+        setSelectedMonth(selectedMonth - 1);
+      }
+    } else {
+      if (selectedMonth === 11) {
+        setSelectedMonth(0);
+        setSelectedYear(selectedYear + 1);
+      } else {
+        setSelectedMonth(selectedMonth + 1);
+      }
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      {/* Header with Controls */}
+      <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center gap-4">
+        <div>
+          <h3 className="text-lg font-semibold text-gray-900">Attendance Records</h3>
+          <p className="text-sm text-gray-600">
+            Showing {filteredData.length} records for {monthNames[selectedMonth]} {selectedYear}
+          </p>
+        </div>
+        
+        <div className="flex flex-wrap gap-2">
+          {/* Month Navigation */}
+          <div className="flex items-center gap-2 bg-white border border-gray-300 rounded-lg p-1">
+            <button
+              onClick={() => navigateMonth('prev')}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              title="Previous month"
+            >
+              <ArrowLeft className="h-4 w-4 text-gray-600" />
+            </button>
+            
+            <select
+              value={selectedMonth}
+              onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+              className="px-2 py-1 border-0 focus:ring-0 text-sm font-medium"
+            >
+              {monthNames.map((month, index) => (
+                <option key={month} value={index}>
+                  {month}
+                </option>
+              ))}
+            </select>
+
+            <select
+              value={selectedYear}
+              onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+              className="px-2 py-1 border-0 focus:ring-0 text-sm font-medium"
+            >
+              {availableYears.map(year => (
+                <option key={year} value={year}>
+                  {year}
+                </option>
+              ))}
+            </select>
+
+            <button
+              onClick={() => navigateMonth('next')}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              title="Next month"
+            >
+              <ArrowRight className="h-4 w-4 text-gray-600" />
+            </button>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <input
+              type="text"
+              placeholder="Search records..."
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+              className="pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+            />
+          </div>
+
+          {/* Filter */}
+          <select
+            value={filterStatus}
+            onChange={(e) => setFilterStatus(e.target.value)}
+            className="px-3 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500 text-sm"
+          >
+            <option value="all">All Status</option>
+            <option value="present">Present</option>
+            <option value="late">Late</option>
+            <option value="absent">Absent</option>
+            <option value="off">Day Off</option>
+          </select>
+
+          {/* Export Button */}
+          <button
+            onClick={exportToCSV}
+            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors text-sm"
+          >
+            <Download className="h-4 w-4" />
+            Export CSV
+          </button>
+        </div>
+      </div>
+
+      {/* Monthly Summary Cards */}
+      {/* <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-green-600">{monthlyStats.present}</div>
+              <div className="text-sm text-gray-600">Present</div>
+            </div>
+            <CheckCircle className="h-8 w-8 text-green-500 opacity-20" />
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-yellow-600">{monthlyStats.late}</div>
+              <div className="text-sm text-gray-600">Late</div>
+            </div>
+            <Clock className="h-8 w-8 text-yellow-500 opacity-20" />
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-red-600">{monthlyStats.absent}</div>
+              <div className="text-sm text-gray-600">Absent</div>
+            </div>
+            <X className="h-8 w-8 text-red-500 opacity-20" />
+          </div>
+        </div>
+        
+        <div className="bg-white rounded-lg p-4 border border-gray-200 shadow-sm">
+          <div className="flex items-center justify-between">
+            <div>
+              <div className="text-2xl font-bold text-blue-600">{monthlyStats.totalHours}h</div>
+              <div className="text-sm text-gray-600">Total Hours</div>
+            </div>
+            <Calculator className="h-8 w-8 text-blue-500 opacity-20" />
+          </div>
+        </div>
+      </div> */}
+
+      {/* Quick Stats Bar */}
+      {/* <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
+          <div className="text-center">
+            <div className="font-semibold text-blue-900">{monthlyStats.totalWorkingDays}</div>
+            <div className="text-blue-700">Working Days</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-blue-900">{monthlyStats.averageHours}h</div>
+            <div className="text-blue-700">Avg Hours/Day</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-blue-900">
+              {monthlyStats.totalWorkingDays > 0 
+                ? Math.round((monthlyStats.present / monthlyStats.totalWorkingDays) * 100)
+                : 0}%
+            </div>
+            <div className="text-blue-700">Attendance Rate</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-blue-900">
+              {filteredData.filter(r => parseFloat(r.hours) >= 8).length}
+            </div>
+            <div className="text-blue-700">Full Days (8h+)</div>
+          </div>
+        </div>
+      </div> */}
+
+      {/* Attendance Table */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-hidden">
+        <div className="overflow-x-auto">
+          <table className="w-full">
+            <thead className="bg-gray-50 border-b border-gray-200">
+              <tr>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('date')}
+                >
+                  <div className="flex items-center gap-1">
+                    Date
+                    {sortBy === 'date' && (
+                      <ChevronDown className={`h-4 w-4 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                    )}
+                  </div>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Day
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Status
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Check In
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Check Out
+                </th>
+                <th 
+                  className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
+                  onClick={() => handleSort('hours')}
+                >
+                  <div className="flex items-center gap-1">
+                    Hours
+                    {sortBy === 'hours' && (
+                      <ChevronDown className={`h-4 w-4 transition-transform ${sortOrder === 'asc' ? 'rotate-180' : ''}`} />
+                    )}
+                  </div>
+                </th>
+                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Remarks
+                </th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {filteredData.map((record, index) => {
+                const statusInfo = getStatusInfo(record.status);
+                const recordDate = new Date(record.date);
+                const dayName = recordDate.toLocaleDateString('en-US', { weekday: 'long' });
+                
+                return (
+                  <tr key={index} className="hover:bg-gray-50 transition-colors">
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm font-medium text-gray-900">
+                        {formatDate(record.date)}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-500 capitalize">
+                        {dayName}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                        {statusInfo.text}
+                      </span>
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.checkIn}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {record.checkOut}
+                    </td>
+                    <td className="px-6 py-4 whitespace-nowrap">
+                      <div className={`text-sm font-medium ${
+                        parseFloat(record.hours) >= 8 ? 'text-green-600' : 
+                        parseFloat(record.hours) >= 6 ? 'text-yellow-600' : 'text-red-600'
+                      }`}>
+                        {record.hours}h
+                      </div>
+                    </td>
+                    <td className="px-6 py-4">
+                      <div className="text-sm text-gray-600 max-w-xs truncate" title={record.remarks}>
+                        {record.remarks}
+                      </div>
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+          </table>
+        </div>
+
+        {filteredData.length === 0 && (
+          <div className="text-center py-12">
+            <Table className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+            <h3 className="text-lg font-medium text-gray-900 mb-2">No records found</h3>
+            <p className="text-gray-500">
+              {searchTerm || filterStatus !== 'all' 
+                ? 'Try adjusting your search or filter criteria'
+                : `No attendance records for ${monthNames[selectedMonth]} ${selectedYear}`
+              }
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Monthly Analysis */}
+      
+    </div>
+  );
+};
+
 export function EmployeeAttendancePage() {
   const {
     attendanceData,
@@ -291,6 +725,7 @@ export function EmployeeAttendancePage() {
 
   const [isLoading, setIsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
+  const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'attendance-sheet'
   
   // Enhanced Break Data with overtime tracking
   const [breakData, setBreakData] = useState({
@@ -734,6 +1169,12 @@ export function EmployeeAttendancePage() {
     day.status === 'present' || day.status === 'late'
   );
 
+  // Tab navigation
+  const tabs = [
+    { id: 'dashboard', name: 'Attendance Dashboard', icon: ShieldUser },
+    { id: 'attendance-sheet', name: 'Attendance Sheet', icon: Table }
+  ];
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-gray-50 via-blue-50 to-gray-100 relative overflow-hidden">
       {/* Top Navigation Menu */}
@@ -770,386 +1211,423 @@ export function EmployeeAttendancePage() {
           </div>
         </div>
 
-        {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-600">Today Status</h3>
-              <Clock className="h-5 w-5 text-blue-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{getTodayStatus().status.toUpperCase()}</div>
-            <p className="text-sm text-blue-600 mt-1 flex items-center">
-              <LogIn className="h-4 w-4 mr-1" />
-              {getTodayStatus().checkIn}
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-600">Present Days</h3>
-              <CheckCircle className="h-5 w-5 text-green-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.present}</div>
-            <p className="text-sm text-green-600 mt-1 flex items-center">
-              <Users className="h-4 w-4 mr-1" />
-              {stats.attendancePercentage}% rate
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-600">Attendance Rate</h3>
-              <PieChart className="h-5 w-5 text-blue-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.attendancePercentage}%</div>
-            <p className="text-sm text-blue-600 mt-1 flex items-center">
-              <BarChart3 className="h-4 w-4 mr-1" />
-              Overall this month
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-600">Late Days</h3>
-              <Clock className="h-5 w-5 text-red-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{stats.late}</div>
-            <p className="text-sm text-red-600 mt-1 flex items-center">
-              <AlertCircle className="h-4 w-4 mr-1" />
-              Late arrivals
-            </p>
-          </div>
-
-          <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-medium text-gray-600">Working Hours</h3>
-              <Calculator className="h-5 w-5 text-purple-500" />
-            </div>
-            <div className="text-2xl font-bold text-gray-900">{formatDuration(workingHoursSummary.netWorkingTime)}</div>
-            <p className="text-sm text-purple-600 mt-1 flex items-center">
-              <Activity className="h-4 w-4 mr-1" />
-              Today's total
-            </p>
+        {/* Tab Navigation */}
+        <div className="mb-8">
+          <div className="border-b border-gray-200">
+            <nav className="-mb-px flex space-x-8">
+              {tabs.map((tab) => {
+                const Icon = tab.icon;
+                const isActive = activeTab === tab.id;
+                return (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveTab(tab.id)}
+                    className={`flex items-center gap-2 py-2 px-1 border-b-2 font-medium text-sm ${
+                      isActive
+                        ? 'border-blue-500 text-blue-600'
+                        : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                    }`}
+                  >
+                    <Icon className="h-4 w-4" />
+                    {tab.name}
+                  </button>
+                );
+              })}
+            </nav>
           </div>
         </div>
 
-        {/* Main Content Area */}
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Left Column - Check In/Out & Working Hours */}
-          <div className="space-y-6">
-            {/* Check In/Out */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance</h2>
-              <div className="space-y-4">
-                <button 
-                  onClick={handleSystemCheckInWrapper}
-                  disabled={!canCheckIn()}
-                  className={`w-full flex items-center justify-center p-4 rounded-xl border transition duration-300 ${
-                    canCheckIn() 
-                      ? 'bg-green-50 border-green-200 hover:border-green-400 text-green-700' 
-                      : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <LogIn className="h-5 w-5 mr-2" />
-                  <span className="font-medium">Check In</span>
-                </button>
-                
-                <button 
-                  onClick={handleSystemCheckOutWrapper}
-                  disabled={!canCheckOut()}
-                  className={`w-full flex items-center justify-center p-4 rounded-xl border transition duration-300 ${
-                    canCheckOut() 
-                      ? 'bg-blue-50 border-blue-200 hover:border-blue-400 text-blue-700' 
-                      : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
-                  }`}
-                >
-                  <LogOut className="h-5 w-5 mr-2" />
-                  <span className="font-medium">Check Out</span>
-                </button>
+        {/* Tab Content */}
+        {activeTab === 'dashboard' ? (
+          <>
+            {/* Stats Cards */}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-5 gap-6 mb-8">
+              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Today Status</h3>
+                  <Clock className="h-5 w-5 text-blue-500" />
+                </div>
+                <div className="text-2xl font-bold text-gray-900">{getTodayStatus().status.toUpperCase()}</div>
+                <p className="text-sm text-blue-600 mt-1 flex items-center">
+                  <LogIn className="h-4 w-4 mr-1" />
+                  {getTodayStatus().checkIn}
+                </p>
               </div>
 
-              {systemAttendance.checkedIn && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
-                  <div className="flex justify-between items-center text-sm">
-                    <span className="text-blue-700 font-medium">Current Session:</span>
-                    <span className="text-blue-900 font-bold">
-                      {formatDuration(systemAttendance.totalWorkingTime)}
-                    </span>
-                  </div>
-                  <div className="text-xs text-blue-600 mt-1">
-                    {systemAttendance.isOnBreak ? '⏸️ Break in progress' : '⏱️ Working...'}
-                  </div>
+              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Present Days</h3>
+                  <CheckCircle className="h-5 w-5 text-green-500" />
                 </div>
-              )}
-            </div>
+                <div className="text-2xl font-bold text-gray-900">{stats.present}</div>
+                <p className="text-sm text-green-600 mt-1 flex items-center">
+                  <Users className="h-4 w-4 mr-1" />
+                  {stats.attendancePercentage}% rate
+                </p>
+              </div>
 
-            {/* Working Hours Summary */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Calculator className="h-5 w-5 text-blue-500" />
-                Working Hours
-              </h2>
-              
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Gross Time:</span>
-                  <span className="font-medium">{formatDuration(workingHoursSummary.grossWorkingTime)}</span>
+              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Attendance Rate</h3>
+                  <PieChart className="h-5 w-5 text-blue-500" />
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Break Time:</span>
-                  <span className="font-medium text-orange-600">- {formatDuration(workingHoursSummary.totalBreakTime)}</span>
+                <div className="text-2xl font-bold text-gray-900">{stats.attendancePercentage}%</div>
+                <p className="text-sm text-blue-600 mt-1 flex items-center">
+                  <BarChart3 className="h-4 w-4 mr-1" />
+                  Overall this month
+                </p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Late Days</h3>
+                  <Clock className="h-5 w-5 text-red-500" />
                 </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Exceeded Breaks:</span>
-                  <span className="font-medium text-red-600">+ {formatDuration(workingHoursSummary.exceededBreakTime)}</span>
+                <div className="text-2xl font-bold text-gray-900">{stats.late}</div>
+                <p className="text-sm text-red-600 mt-1 flex items-center">
+                  <AlertCircle className="h-4 w-4 mr-1" />
+                  Late arrivals
+                </p>
+              </div>
+
+              <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
+                <div className="flex items-center justify-between mb-4">
+                  <h3 className="text-sm font-medium text-gray-600">Working Hours</h3>
+                  <Calculator className="h-5 w-5 text-purple-500" />
                 </div>
-                <div className="flex justify-between items-center pt-3 border-t border-gray-200">
-                  <span className="font-medium text-gray-900">Net Working Time:</span>
-                  <span className="font-bold text-green-600">{formatDuration(workingHoursSummary.netWorkingTime)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Efficiency:</span>
-                  <span className="font-medium text-blue-600">{workingHoursSummary.efficiency}%</span>
-                </div>
+                <div className="text-2xl font-bold text-gray-900">{formatDuration(workingHoursSummary.netWorkingTime)}</div>
+                <p className="text-sm text-purple-600 mt-1 flex items-center">
+                  <Activity className="h-4 w-4 mr-1" />
+                  Today's total
+                </p>
               </div>
             </div>
-          </div>
 
-          {/* Middle Column - Break Management */}
-          <div className="space-y-6">
-            {/* Break Management */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Break Management</h2>
-              <div className="grid grid-cols-2 gap-4">
-                {breakTypes.map((breakType) => {
-                  const breakInfo = breakData[breakType.id];
-                  const currentDuration = getCurrentBreakDuration(breakType.id);
-                  const isExceeding = currentDuration > breakType.limit;
-                  
-                  return (
-                    <div key={breakType.id} className="flex flex-col space-y-2">
-                      <button 
-                        onClick={() => handleBreakStart(breakType.id)}
-                        disabled={breakInfo.active}
-                        className={`flex flex-col items-center justify-center p-3 rounded-xl border transition duration-300 ${
-                          breakInfo.active
-                            ? `${breakType.color} text-white border-transparent`
-                            : `bg-gray-50 border-gray-200 text-gray-700 hover:border-gray-400`
-                        }`}
-                      >
-                        <breakType.icon className="h-5 w-5 mb-1" />
-                        <span className="text-xs font-medium">
-                          {breakInfo.active ? 'Active' : breakType.name}
-                        </span>
-                        <span className="text-xs opacity-75 mt-1">
-                          {breakInfo.active ? 
-                            `${Math.round(currentDuration)}m / ${breakType.limit}m` : 
-                            `${breakType.limit}m`
-                          }
-                        </span>
-                        {isExceeding && (
-                          <span className="text-xs text-red-200 mt-1">EXCEEDED!</span>
-                        )}
-                      </button>
-                      
-                      {breakInfo.active && (
-                        <button 
-                          onClick={() => handleManualBreakEnd(breakType.id)}
-                          className="flex items-center justify-center p-2 rounded-xl border border-gray-200 hover:border-gray-400 text-gray-700 bg-gray-50 transition duration-300 text-xs"
-                        >
-                          <CheckCircle className="h-3 w-3 mr-1" />
-                          End Break
-                        </button>
-                      )}
-                    </div>
-                  );
-                })}
-              </div>
-
-              {/* Break Summary */}
-              <div className="mt-4 p-4 bg-gray-50 rounded-lg">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Today's Breaks</h4>
-                <div className="space-y-2 text-sm">
-                  <div className="flex justify-between">
-                    <span>Total Break Time:</span>
-                    <span className="font-medium">{formatDuration(breakSummary.totalDuration)}</span>
+            {/* Main Content Area */}
+            <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+              {/* Left Column - Check In/Out & Working Hours */}
+              <div className="space-y-6">
+                {/* Check In/Out */}
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance</h2>
+                  <div className="space-y-4">
+                    <button 
+                      onClick={handleSystemCheckInWrapper}
+                      disabled={!canCheckIn()}
+                      className={`w-full flex items-center justify-center p-4 rounded-xl border transition duration-300 ${
+                        canCheckIn() 
+                          ? 'bg-green-50 border-green-200 hover:border-green-400 text-green-700' 
+                          : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <LogIn className="h-5 w-5 mr-2" />
+                      <span className="font-medium">Check In</span>
+                    </button>
+                    
+                    <button 
+                      onClick={handleSystemCheckOutWrapper}
+                      disabled={!canCheckOut()}
+                      className={`w-full flex items-center justify-center p-4 rounded-xl border transition duration-300 ${
+                        canCheckOut() 
+                          ? 'bg-blue-50 border-blue-200 hover:border-blue-400 text-blue-700' 
+                          : 'bg-gray-100 border-gray-200 text-gray-400 cursor-not-allowed'
+                      }`}
+                    >
+                      <LogOut className="h-5 w-5 mr-2" />
+                      <span className="font-medium">Check Out</span>
+                    </button>
                   </div>
-                  {breakSummary.exceededDuration > 0 && (
-                    <div className="flex justify-between text-red-600">
-                      <span>Exceeded Time:</span>
-                      <span className="font-medium">+{formatDuration(breakSummary.exceededDuration)}</span>
+
+                  {systemAttendance.checkedIn && (
+                    <div className="mt-4 p-4 bg-blue-50 rounded-lg border border-blue-200">
+                      <div className="flex justify-between items-center text-sm">
+                        <span className="text-blue-700 font-medium">Current Session:</span>
+                        <span className="text-blue-900 font-bold">
+                          {formatDuration(systemAttendance.totalWorkingTime)}
+                        </span>
+                      </div>
+                      <div className="text-xs text-blue-600 mt-1">
+                        {systemAttendance.isOnBreak ? '⏸️ Break in progress' : '⏱️ Working...'}
+                      </div>
                     </div>
                   )}
-                  <div className="flex justify-between text-blue-600">
-                    <span>Active Breaks:</span>
-                    <span className="font-medium">
-                      {breakTypes.filter(breakType => breakData[breakType.id].active).length}
-                    </span>
-                  </div>
-                </div>
-              </div>
-            </div>
-
-            {/* Quick Stats */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h2>
-              <div className="space-y-4">
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Attendance Rate:</span>
-                  <span className="font-medium text-blue-600">{stats.attendancePercentage}%</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Present Days:</span>
-                  <span className="font-medium text-green-600">{stats.present}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Absent/Late:</span>
-                  <span className="font-medium text-red-600">{stats.absent + stats.late}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-gray-600">Working Days:</span>
-                  <span className="font-medium text-gray-900">{stats.workingDays}</span>
-                </div>
-              </div>
-            </div>
-          </div>
-
-          {/* Right Column - Overtime Debt */}
-          <div className="space-y-6">
-            {/* Overtime Debt */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
-                <Scale className="h-5 w-5 text-amber-600" />
-                Overtime Debt
-              </h2>
-              
-              <div className="grid grid-cols-2 gap-4 mb-4">
-                <div className="bg-red-50 rounded-lg p-4 border border-red-200">
-                  <div className="text-sm font-medium text-red-900 mb-1">Total Debt</div>
-                  <div className="text-xl font-bold text-red-900">
-                    {formatDuration(overtimeDebt.totalDebt)}
-                  </div>
                 </div>
 
-                <div className="bg-green-50 rounded-lg p-4 border border-green-200">
-                  <div className="text-sm font-medium text-green-900 mb-1">Worked</div>
-                  <div className="text-xl font-bold text-green-900">
-                    {formatDuration(overtimeDebt.workedOvertime)}
-                  </div>
-                </div>
-
-                <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
-                  <div className="text-sm font-medium text-purple-900 mb-1">Net Balance</div>
-                  <div className="text-xl font-bold text-purple-900">
-                    {formatDuration(overtimeDebt.netDebt)}
-                  </div>
-                </div>
-
-                <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                  <div className="text-sm font-medium text-blue-900 mb-1">Today's Need</div>
-                  <div className="text-xl font-bold text-blue-900">
-                    {formatDuration(workingHoursSummary.overtimeRequired)}
+                {/* Working Hours Summary */}
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Calculator className="h-5 w-5 text-blue-500" />
+                    Working Hours
+                  </h2>
+                  
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Gross Time:</span>
+                      <span className="font-medium">{formatDuration(workingHoursSummary.grossWorkingTime)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Break Time:</span>
+                      <span className="font-medium text-orange-600">- {formatDuration(workingHoursSummary.totalBreakTime)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Exceeded Breaks:</span>
+                      <span className="font-medium text-red-600">+ {formatDuration(workingHoursSummary.exceededBreakTime)}</span>
+                    </div>
+                    <div className="flex justify-between items-center pt-3 border-t border-gray-200">
+                      <span className="font-medium text-gray-900">Net Working Time:</span>
+                      <span className="font-bold text-green-600">{formatDuration(workingHoursSummary.netWorkingTime)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Efficiency:</span>
+                      <span className="font-medium text-blue-600">{workingHoursSummary.efficiency}%</span>
+                    </div>
                   </div>
                 </div>
               </div>
 
-              {/* Overtime Actions */}
-              <div className="bg-gray-50 rounded-lg p-4">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Record Overtime Work</h4>
-                <div className="flex gap-2">
-                  <button 
-                    onClick={() => handleOvertimeWork(30)}
-                    className="flex-1 px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition"
-                  >
-                    +30m
-                  </button>
-                  <button 
-                    onClick={() => handleOvertimeWork(60)}
-                    className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
-                  >
-                    +60m
-                  </button>
-                  <button 
-                    onClick={() => {
-                      const custom = prompt('Enter minutes:');
-                      if (custom) handleOvertimeWork(parseInt(custom));
-                    }}
-                    className="flex-1 px-3 py-2 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800 transition"
-                  >
-                    Custom
-                  </button>
-                </div>
-              </div>
-            </div>
+              {/* Middle Column - Break Management */}
+              <div className="space-y-6">
+                {/* Break Management */}
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Break Management</h2>
+                  <div className="grid grid-cols-2 gap-4">
+                    {breakTypes.map((breakType) => {
+                      const breakInfo = breakData[breakType.id];
+                      const currentDuration = getCurrentBreakDuration(breakType.id);
+                      const isExceeding = currentDuration > breakType.limit;
+                      
+                      return (
+                        <div key={breakType.id} className="flex flex-col space-y-2">
+                          <button 
+                            onClick={() => handleBreakStart(breakType.id)}
+                            disabled={breakInfo.active}
+                            className={`flex flex-col items-center justify-center p-3 rounded-xl border transition duration-300 ${
+                              breakInfo.active
+                                ? `${breakType.color} text-white border-transparent`
+                                : `bg-gray-50 border-gray-200 text-gray-700 hover:border-gray-400`
+                            }`}
+                          >
+                            <breakType.icon className="h-5 w-5 mb-1" />
+                            <span className="text-xs font-medium">
+                              {breakInfo.active ? 'Active' : breakType.name}
+                            </span>
+                            <span className="text-xs opacity-75 mt-1">
+                              {breakInfo.active ? 
+                                `${Math.round(currentDuration)}m / ${breakType.limit}m` : 
+                                `${breakType.limit}m`
+                              }
+                            </span>
+                            {isExceeding && (
+                              <span className="text-xs text-red-200 mt-1">EXCEEDED!</span>
+                            )}
+                          </button>
+                          
+                          {breakInfo.active && (
+                            <button 
+                              onClick={() => handleManualBreakEnd(breakType.id)}
+                              className="flex items-center justify-center p-2 rounded-xl border border-gray-200 hover:border-gray-400 text-gray-700 bg-gray-50 transition duration-300 text-xs"
+                            >
+                              <CheckCircle className="h-3 w-3 mr-1" />
+                              End Break
+                            </button>
+                          )}
+                        </div>
+                      );
+                    })}
+                  </div>
 
-            {/* Debt Breakdown */}
-            <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">Debt Breakdown</h2>
-              <div className="space-y-3">
-                <div className="flex justify-between items-center">
-                  <span className="text-red-600">Break Exceedance:</span>
-                  <span className="font-medium">{formatDuration(overtimeDebt.breakOvertime)}</span>
-                </div>
-                <div className="flex justify-between items-center">
-                  <span className="text-orange-600">Late Arrivals:</span>
-                  <span className="font-medium">{formatDuration(overtimeDebt.lateOvertime)}</span>
-                </div>
-              </div>
-
-              {overtimeDebt.history.length > 0 && (
-                <div className="mt-4">
-                  <h4 className="text-sm font-medium text-gray-900 mb-2">Recent Activity</h4>
-                  <div className="space-y-2 max-h-32 overflow-y-auto">
-                    {overtimeDebt.history.slice(-3).reverse().map((event, index) => (
-                      <div key={index} className="flex justify-between items-center text-xs bg-gray-50 p-2 rounded">
-                        <div className="text-gray-600 truncate">{event.reason}</div>
-                        <div className="font-medium text-amber-700">+{Math.round(event.minutes)}m</div>
+                  {/* Break Summary */}
+                  <div className="mt-4 p-4 bg-gray-50 rounded-lg">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Today's Breaks</h4>
+                    <div className="space-y-2 text-sm">
+                      <div className="flex justify-between">
+                        <span>Total Break Time:</span>
+                        <span className="font-medium">{formatDuration(breakSummary.totalDuration)}</span>
                       </div>
-                    ))}
+                      {breakSummary.exceededDuration > 0 && (
+                        <div className="flex justify-between text-red-600">
+                          <span>Exceeded Time:</span>
+                          <span className="font-medium">+{formatDuration(breakSummary.exceededDuration)}</span>
+                        </div>
+                      )}
+                      <div className="flex justify-between text-blue-600">
+                        <span>Active Breaks:</span>
+                        <span className="font-medium">
+                          {breakTypes.filter(breakType => breakData[breakType.id].active).length}
+                        </span>
+                      </div>
+                    </div>
                   </div>
                 </div>
-              )}
-            </div>
-          </div>
-        </div>
 
-        {/* Attendance History Table */}
-        <div className="mt-8 bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
-          <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance History</h2>
-          <div className="overflow-x-auto">
-            <table className="w-full">
-              <thead>
-                <tr className="border-b border-gray-200">
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Date</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Check In</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Check Out</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Hours</th>
-                  <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Remarks</th>
-                </tr>
-              </thead>
-              <tbody>
-                {attendanceHistory.slice(0, 10).map((day, index) => {
-                  const statusInfo = getStatusInfo(day.status);
-                  return (
-                    <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
-                      <td className="py-3 px-4 text-sm text-gray-900">{formatDate(day.date)}</td>
-                      <td className="py-3 px-4">
-                        <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
-                          {statusInfo.text}
-                        </span>
-                      </td>
-                      <td className="py-3 px-4 text-sm text-gray-900">{day.checkIn}</td>
-                      <td className="py-3 px-4 text-sm text-gray-900">{day.checkOut}</td>
-                      <td className="py-3 px-4 text-sm font-medium text-gray-900">{day.hours}h</td>
-                      <td className="py-3 px-4 text-sm text-gray-600">{day.remarks}</td>
+                {/* Quick Stats */}
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Stats</h2>
+                  <div className="space-y-4">
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Attendance Rate:</span>
+                      <span className="font-medium text-blue-600">{stats.attendancePercentage}%</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Present Days:</span>
+                      <span className="font-medium text-green-600">{stats.present}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Absent/Late:</span>
+                      <span className="font-medium text-red-600">{stats.absent + stats.late}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-gray-600">Working Days:</span>
+                      <span className="font-medium text-gray-900">{stats.workingDays}</span>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Right Column - Overtime Debt */}
+              <div className="space-y-6">
+                {/* Overtime Debt */}
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
+                    <Scale className="h-5 w-5 text-amber-600" />
+                    Overtime Debt
+                  </h2>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div className="bg-red-50 rounded-lg p-4 border border-red-200">
+                      <div className="text-sm font-medium text-red-900 mb-1">Total Debt</div>
+                      <div className="text-xl font-bold text-red-900">
+                        {formatDuration(overtimeDebt.totalDebt)}
+                      </div>
+                    </div>
+
+                    <div className="bg-green-50 rounded-lg p-4 border border-green-200">
+                      <div className="text-sm font-medium text-green-900 mb-1">Worked</div>
+                      <div className="text-xl font-bold text-green-900">
+                        {formatDuration(overtimeDebt.workedOvertime)}
+                      </div>
+                    </div>
+
+                    <div className="bg-purple-50 rounded-lg p-4 border border-purple-200">
+                      <div className="text-sm font-medium text-purple-900 mb-1">Net Balance</div>
+                      <div className="text-xl font-bold text-purple-900">
+                        {formatDuration(overtimeDebt.netDebt)}
+                      </div>
+                    </div>
+
+                    <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+                      <div className="text-sm font-medium text-blue-900 mb-1">Today's Need</div>
+                      <div className="text-xl font-bold text-blue-900">
+                        {formatDuration(workingHoursSummary.overtimeRequired)}
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Overtime Actions */}
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    <h4 className="text-sm font-medium text-gray-900 mb-2">Record Overtime Work</h4>
+                    <div className="flex gap-2">
+                      <button 
+                        onClick={() => handleOvertimeWork(30)}
+                        className="flex-1 px-3 py-2 bg-green-500 text-white text-sm rounded-lg hover:bg-green-600 transition"
+                      >
+                        +30m
+                      </button>
+                      <button 
+                        onClick={() => handleOvertimeWork(60)}
+                        className="flex-1 px-3 py-2 bg-green-600 text-white text-sm rounded-lg hover:bg-green-700 transition"
+                      >
+                        +60m
+                      </button>
+                      <button 
+                        onClick={() => {
+                          const custom = prompt('Enter minutes:');
+                          if (custom) handleOvertimeWork(parseInt(custom));
+                        }}
+                        className="flex-1 px-3 py-2 bg-green-700 text-white text-sm rounded-lg hover:bg-green-800 transition"
+                      >
+                        Custom
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Debt Breakdown */}
+                <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+                  <h2 className="text-lg font-semibold text-gray-900 mb-4">Debt Breakdown</h2>
+                  <div className="space-y-3">
+                    <div className="flex justify-between items-center">
+                      <span className="text-red-600">Break Exceedance:</span>
+                      <span className="font-medium">{formatDuration(overtimeDebt.breakOvertime)}</span>
+                    </div>
+                    <div className="flex justify-between items-center">
+                      <span className="text-orange-600">Late Arrivals:</span>
+                      <span className="font-medium">{formatDuration(overtimeDebt.lateOvertime)}</span>
+                    </div>
+                  </div>
+
+                  {overtimeDebt.history.length > 0 && (
+                    <div className="mt-4">
+                      <h4 className="text-sm font-medium text-gray-900 mb-2">Recent Activity</h4>
+                      <div className="space-y-2 max-h-32 overflow-y-auto">
+                        {overtimeDebt.history.slice(-3).reverse().map((event, index) => (
+                          <div key={index} className="flex justify-between items-center text-xs bg-gray-50 p-2 rounded">
+                            <div className="text-gray-600 truncate">{event.reason}</div>
+                            <div className="font-medium text-amber-700">+{Math.round(event.minutes)}m</div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </div>
+            </div>
+
+            {/* Attendance History Table */}
+            {/* <div className="mt-8 bg-white rounded-2xl p-6 border border-gray-200 shadow-sm">
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">Attendance History</h2>
+              <div className="overflow-x-auto">
+                <table className="w-full">
+                  <thead>
+                    <tr className="border-b border-gray-200">
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Date</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Status</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Check In</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Check Out</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Hours</th>
+                      <th className="text-left py-3 px-4 text-sm font-semibold text-gray-600">Remarks</th>
                     </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+                  </thead>
+                  <tbody>
+                    {attendanceHistory.slice(0, 10).map((day, index) => {
+                      const statusInfo = getStatusInfo(day.status);
+                      return (
+                        <tr key={index} className="border-b border-gray-100 hover:bg-gray-50">
+                          <td className="py-3 px-4 text-sm text-gray-900">{formatDate(day.date)}</td>
+                          <td className="py-3 px-4">
+                            <span className={`inline-flex items-center gap-1 px-3 py-1 rounded-full text-xs font-medium ${statusInfo.color}`}>
+                              {statusInfo.text}
+                            </span>
+                          </td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{day.checkIn}</td>
+                          <td className="py-3 px-4 text-sm text-gray-900">{day.checkOut}</td>
+                          <td className="py-3 px-4 text-sm font-medium text-gray-900">{day.hours}h</td>
+                          <td className="py-3 px-4 text-sm text-gray-600">{day.remarks}</td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            </div> */}
+          </>
+        ) : (
+          <AttendanceSheet 
+            attendanceData={attendanceData}
+            onExport={() => {}}
+            onFilter={() => {}}
+          />
+        )}
       </div>
     </div>
   );

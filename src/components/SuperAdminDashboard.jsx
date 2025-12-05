@@ -38,7 +38,7 @@ export function SuperAdminDashboard() {
     if (path === '/attendance') return 'attendance';
     if (path === '/activity-tracker') return 'activity-tracker';
     if (path === '/employees') return 'employees';
-    if (path === '/applications-memos') return 'applications-memos';
+    if (path === '/application-memos') return 'application-memos';
     if (path === '/employee-feedback') return 'employee-feedback';
     if (path === '/payroll') return 'payroll';
     if (path === '/expenses') return 'expenses';
@@ -403,7 +403,7 @@ export function SuperAdminDashboard() {
       'attendance': 'Attendance Management',
       'activity-tracker': 'Activity Tracker',
       'employees': 'Employee Management',
-      'applications-memos': 'Applications & Memos',
+      'application-memos': 'Applications & Memos',
       'employee-feedback': 'Employee Feedback',
       'payroll': 'Payroll Management',
       'expenses': 'Expenses Management',
@@ -448,7 +448,7 @@ export function SuperAdminDashboard() {
       case 'activity-tracker':
         return <ActivityContent data={activities} />;
       
-      case 'applications-memos':
+      case 'application-memos':
         return <ApplicationsContent />;
       
       case 'employee-feedback':
@@ -676,7 +676,7 @@ function DashboardContent({ data, navigate }) {
           <div className="flex justify-between items-center mb-4">
             <h3 className="text-lg font-semibold text-gray-900">Recent Applications</h3>
             <button 
-              onClick={() => navigate('/applications-memos')}
+              onClick={() => navigate('/application-memos')}
               className="text-blue-600 hover:text-blue-800 text-sm font-medium"
             >
               View All

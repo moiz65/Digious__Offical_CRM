@@ -10,6 +10,11 @@ import SuperAttendance from './pages/SuperAttendance';
 import SuperDashboard from './pages/SuperDashboard';
 import ActivityTracker from './pages/ActivityTracker';
 import EmployeeAttendance from './pages/EmployeeAtt';
+import Employees from './pages/Employee';
+import EmployeeDetails from './pages/EmployeeDetails';
+import ApplicationandMemos from './pages/ApplicationandMemos';
+import ApplicationandMemoEmployees from './pages/ApplicationandMemoEmployees';
+
 
 function App() {
   return (
@@ -30,6 +35,10 @@ function App() {
           <Route path="/activity-tracker" element={<ActivityTracker />} />
           <Route path="/testdashboard" element={<ActivityTracker />} /> 
           <Route path="/employeeattendance" element={<EmployeeAttendance />} /> 
+          <Route path="/employees" element={<Employees />} /> 
+          <Route path="/employeedetails" element={<EmployeeDetails />} />
+          <Route path="/application-memos" element={<ApplicationandMemos />} />
+          <Route path="/applications-memos" element={<ApplicationandMemoEmployees />} />
           
           {/* Default redirect */}
           <Route path="/" element={<Navigate to="/login" />} />

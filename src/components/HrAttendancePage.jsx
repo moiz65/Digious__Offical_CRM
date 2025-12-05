@@ -366,7 +366,7 @@ const BreakDetailsModal = ({ isOpen, onClose, breaks, date, employeeName }) => {
   );
 };
 
-// Uninform Tracking Component
+// Uninformed Tracking Component
 const UnexplainedAbsenceTracking = ({ 
   attendanceData, 
   employees, 
@@ -376,7 +376,7 @@ const UnexplainedAbsenceTracking = ({
 }) => {
   const [selectedAbsences, setSelectedAbsences] = useState([]);
 
-  // Get Uninform for the selected date
+  // Get Uninformed for the selected date
   const getUnexplainedAbsences = () => {
     const todayAttendance = attendanceData.filter(item => item.date === selectedDate);
     
@@ -433,7 +433,7 @@ const UnexplainedAbsenceTracking = ({
     <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm mb-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h2 className="text-xl font-bold text-gray-900">Uninform</h2>
+          <h2 className="text-xl font-bold text-gray-900">Uninformed</h2>
           <p className="text-gray-600">
             Employees who haven't reported their absence for {new Date(selectedDate).toLocaleDateString()}
           </p>
@@ -514,7 +514,7 @@ const UnexplainedAbsenceTracking = ({
                 
                 <div>
                   <span className="px-2 py-1 bg-red-100 text-red-800 rounded-full text-xs font-medium">
-                    Uninform
+                    Uninformed
                   </span>
                 </div>
                 
@@ -1592,11 +1592,11 @@ const EmployeeDetailView = ({
           </div>
         </div>
 
-        {/* Uninform Section */}
+        {/* Uninformed Section */}
         {unexplainedAbsences.length > 0 && (
           <div className="mb-8">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-red-900">Uninform</h3>
+              <h3 className="text-lg font-semibold text-red-900">Uninformed</h3>
               <span className="px-3 py-1 bg-red-100 text-red-800 rounded-full text-sm font-medium">
                 {unexplainedAbsences.length} need explanation
               </span>
@@ -2264,7 +2264,7 @@ const OverviewTab = ({
 
   return (
     <div className="space-y-6">
-      {/* Uninform Tracking */}
+      {/* Uninformed Tracking */}
       <UnexplainedAbsenceTracking
         attendanceData={attendanceData}
         employees={employees}
@@ -2556,7 +2556,7 @@ const OverviewTab = ({
               <option value="absent">Absent</option>
               <option value="leave">On Leave</option>
               <option value="halfday">Half Day</option>
-              <option value="unexplained">Uninform</option>
+              <option value="unexplained">Uninformed</option>
             </select>
           </div>
           <div className="flex items-center space-x-2">
@@ -3168,7 +3168,7 @@ export function HrAttendancePage() {
     }
   });
 
-  // Enhanced stats calculation to include Uninform
+  // Enhanced stats calculation to include Uninformed
   const calculateStats = () => {
     const filteredData = getFilteredAttendanceData();
     const filteredEmployees = getFilteredEmployees();
@@ -3182,7 +3182,7 @@ export function HrAttendancePage() {
     const absentCount = todayData.filter(item => item.status === 'absent').length;
     const lateCount = todayData.filter(item => item.late !== '-').length;
     
-    // Calculate Uninform
+    // Calculate Uninformed
     const unexplainedAbsences = todayData.filter(item => 
       item.status === 'absent' && (!item.notes || item.notes === 'No notification' || item.notes.includes('No explanation'))
     ).length;
@@ -3276,7 +3276,7 @@ export function HrAttendancePage() {
     return filtered;
   };
 
-  // Add functions for handling Uninform
+  // Add functions for handling Uninformed
   const handleMarkAsExplained = (employeeId, date, explanation) => {
     setAttendanceData(prev => prev.map(att => 
       att.employeeId === employeeId && att.date === date 
@@ -3960,10 +3960,10 @@ export function HrAttendancePage() {
                 </p>
               </div>
 
-              {/* New Uninform card */}
+              {/* New Uninformed card */}
               <div className="bg-white rounded-2xl p-6 border border-gray-200 shadow-sm hover:shadow-md transition-all duration-300">
                 <div className="flex items-center justify-between mb-4">
-                  <h3 className="text-sm font-medium text-gray-600">Uninform</h3>
+                  <h3 className="text-sm font-medium text-gray-600">Uninformed</h3>
                   <UserX className="h-5 w-5 text-red-500" />
                 </div>
                 <div className="text-2xl font-bold text-gray-900">{stats.unexplainedAbsences}</div>

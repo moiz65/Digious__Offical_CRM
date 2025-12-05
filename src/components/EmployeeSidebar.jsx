@@ -40,9 +40,9 @@ const Sidebar = ({ isCollapsed, setIsCollapsed, activeItem, setActiveItem }) => 
       label: 'Operations', 
       icon: Briefcase,
       children: [
-        { id: 'attendance', label: 'Attendance', icon: SheetIcon, path: '/hrattendance' },
+        { id: 'attendance', label: 'Attendance', icon: SheetIcon, path: '/employeeattendance' },
         { id: 'activity-tracker', label: 'Activity Tracker', icon: RefreshCw, path: '/activity-tracker' },
-        { id: 'employees', label: 'Employees', icon: Users, path: '/employees' },
+        { id: 'employees', label: 'Employees', icon: Users, path: '/employeedetails' },
         { id: 'applications-memos', label: 'Applications & Memos', icon: FileText, path: '/applications-memos' },
         // { id: 'employee-feedback', label: 'Employee Feedback', icon: MessageSquare, path: '/employee-feedback' },
       ]
