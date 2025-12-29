@@ -3,6 +3,8 @@ import React from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './context/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import { InactivityWarning } from './components/InactivityWarning';
+import { useInactivityLogout } from './hooks/useInactivityLogout';
 
 // Login & Signup
 import LoginPage from './components/LoginPage';
@@ -32,12 +34,14 @@ import EmployeeAttendance from './pages/Employees/EmployeeAtt';
 import EmployeeDetails from './pages/Employees/EmployeeDetails';
 import ApplicationandMemoEmployees from './pages/Employees/ApplicationandMemoEmployees';
 
-function App() {
+function AppContent() {
+  // Setup inactivity logout (15 minutes)
+  useInactivityLogout(15);
+
   return (
-    <Router>
-      <AuthProvider>
-        <div className="App">
-          <Routes>
+    <div className="App">
+      <InactivityWarning />
+      <Routes>
             {/* Public routes */}
             <Route path="/login" element={<LoginPage />} />
             <Route path="/signup" element={<SignUpPage />} />
@@ -199,10 +203,19 @@ function App() {
             {/* 404 page */}
             <Route path="*" element={<Navigate to="/login" />} />
           </Routes>
-        </div>
+    </div>
+  );
+}
+
+function App() {
+  return (
+    <Router>
+      <AuthProvider>
+        <AppContent />
       </AuthProvider>
     </Router>
   );
 }
+
 
 export default App;

@@ -1,8 +1,9 @@
+// Frontend/src/pages/HR/EmployeeOnboarding.jsx
 import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HrSidebar from '../../components/HrSidebar';
 import { 
-  ArrowLeft, Save, Plus, CheckCircle, AlertCircle, Eye, EyeOff
+  ArrowLeft, Save, Plus, CheckCircle, AlertCircle, Eye, EyeOff, X
 } from 'lucide-react';
 
 const EmployeeOnboarding = () => {
@@ -14,6 +15,7 @@ const EmployeeOnboarding = () => {
   const [employees, setEmployees] = useState([]);
   const [successMessage, setSuccessMessage] = useState('');
   const [errors, setErrors] = useState({});
+  const [isLoading, setIsLoading] = useState(false);
   const departments = ['Sales', 'Marketing', 'Production', 'HR', 'Operations'];
 
   const [formData, setFormData] = useState({
@@ -23,6 +25,7 @@ const EmployeeOnboarding = () => {
     password: '',
     confirmPassword: '',
     phone: '',
+    cnic: '',
     department: '',
     position: '',
     joinDate: '',
@@ -37,23 +40,24 @@ const EmployeeOnboarding = () => {
     bankAccount: '',
     taxId: '',
     designation: '',
-    // Resource allocation (optional)
+    // Resource allocation (optional) - predefined resources
+    laptop: false,
+    laptopSerial: '',
+    charger: false,
+    chargerSerial: '',
+    mouse: false,
+    mouseSerial: '',
+    mobile: false,
+    mobileSerial: '',
     keyboard: false,
     keyboardSerial: '',
     monitor: false,
     monitorSerial: '',
-    other: false,
-    otherName: '',
-    otherSerial: '',
+    // Dynamic resources
+    dynamicResources: [],
+    newResourceName: '',
+    newResourceSerial: '',
     resourcesNote: ''
-  // add missing resource boolean fields (align reset behavior)
-  ,
-  laptop: false,
-  laptopSerial: '',
-  charger: false,
-  chargerSerial: '',
-  mouse: false,
-  mouseSerial: ''
   });
 
   const [showResourcesSection, setShowResourcesSection] = useState(false);
@@ -119,6 +123,7 @@ const EmployeeOnboarding = () => {
     };
 
     try {
+      setIsLoading(true);
       console.log('🔄 Sending employee data to backend...', employeeDataForBackend);
       
       const response = await fetch('http://localhost:5000/api/v1/employees', {
@@ -135,9 +140,11 @@ const EmployeeOnboarding = () => {
         throw new Error(data.message || 'Failed to create employee');
       }
 
+      console.log('✅ Employee onboarded successfully:', data);
+
       // If successful, update local state
       const newEmployee = {
-        id: employees.length + 1,
+        id: data.data.id,
         ...formData,
         baseSalary: Number(formData.baseSalary || 0),
         totalCompensation: computeTotalSalary(),
@@ -152,6 +159,8 @@ const EmployeeOnboarding = () => {
     } catch (error) {
       console.error('❌ Error saving employee:', error);
       setErrors({ submit: error.message });
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -163,6 +172,7 @@ const EmployeeOnboarding = () => {
       password: '',
       confirmPassword: '',
       phone: '',
+      cnic: '',
       department: '',
       position: '',
       joinDate: '',
@@ -183,13 +193,15 @@ const EmployeeOnboarding = () => {
       chargerSerial: '',
       mouse: false,
       mouseSerial: '',
+      mobile: false,
+      mobileSerial: '',
       keyboard: false,
       keyboardSerial: '',
       monitor: false,
       monitorSerial: '',
-      other: false,
-      otherName: '',
-      otherSerial: '',
+      dynamicResources: [],
+      newResourceName: '',
+      newResourceSerial: '',
       resourcesNote: ''
     });
     setErrors({});
@@ -222,6 +234,31 @@ const EmployeeOnboarding = () => {
     const list = [...formData.allowances];
     list.splice(index, 1);
     setFormData({ ...formData, allowances: list });
+  };
+
+  const addDynamicResource = () => {
+    const name = formData.newResourceName.trim();
+    if (!name) return;
+    
+    const newResource = {
+      id: Date.now(),
+      name,
+      serial: formData.newResourceSerial.trim() || 'N/A'
+    };
+    
+    setFormData({
+      ...formData,
+      dynamicResources: [...formData.dynamicResources, newResource],
+      newResourceName: '',
+      newResourceSerial: ''
+    });
+  };
+
+  const removeDynamicResource = (id) => {
+    setFormData({
+      ...formData,
+      dynamicResources: formData.dynamicResources.filter(r => r.id !== id)
+    });
   };
 
   const computeTotalSalary = () => {
@@ -641,6 +678,18 @@ const EmployeeOnboarding = () => {
                       />
                     </div>
 
+                    <div>
+                      <label className="block text-sm font-semibold text-slate-700 mb-2">CNIC</label>
+                      <input
+                        type="text"
+                        name="cnic"
+                        value={formData.cnic}
+                        onChange={handleInputChange}
+                        placeholder="e.g. 12345-6789012-3"
+                        className="w-full px-4 py-3 border border-blue-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500"
+                      />
+                    </div>
+
                     <div className="col-span-2">
                       <label className="block text-sm font-semibold text-slate-700 mb-2">Address *</label>
                       <textarea
@@ -673,7 +722,7 @@ const EmployeeOnboarding = () => {
                       <div className="flex items-center justify-between mb-3">
                         <div>
                           <label className="block text-sm font-semibold text-slate-700">Resource Allocation (optional)</label>
-                          <p className="text-xs text-gray-500">Select any resources issued to the employee and add serial numbers or notes.</p>
+                          <p className="text-xs text-gray-500">Select resources issued to the employee and add serial numbers. Add custom resources as needed.</p>
                         </div>
                         <button
                           type="button"
@@ -686,72 +735,126 @@ const EmployeeOnboarding = () => {
 
                       {showResourcesSection && (
                         <div className="p-4 bg-gray-50 rounded-xl border border-gray-100">
-                          <div className="grid grid-cols-2 gap-4">
-                            <label className="flex items-center gap-3">
-                              <input type="checkbox" name="laptop" checked={formData.laptop} onChange={handleInputChange} className="w-4 h-4" />
-                              <span className="font-medium text-gray-700">Laptop</span>
-                            </label>
-                            <div>
-                              {formData.laptop && (
-                                <input type="text" name="laptopSerial" value={formData.laptopSerial} onChange={handleInputChange} placeholder="Laptop serial / model" className="w-full px-3 py-2 border rounded-md" />
-                              )}
-                            </div>
+                          {/* Predefined Resources */}
+                          <div className="mb-6">
+                            <h4 className="text-sm font-semibold text-gray-800 mb-3">Predefined Resources</h4>
+                            <div className="grid grid-cols-2 gap-4">
+                              <label className="flex items-center gap-3">
+                                <input type="checkbox" name="laptop" checked={formData.laptop} onChange={handleInputChange} className="w-4 h-4" />
+                                <span className="font-medium text-gray-700">Laptop</span>
+                              </label>
+                              <div>
+                                {formData.laptop && (
+                                  <input type="text" name="laptopSerial" value={formData.laptopSerial} onChange={handleInputChange} placeholder="Serial / Model" className="w-full px-3 py-2 border rounded-md text-sm" />
+                                )}
+                              </div>
 
-                            <label className="flex items-center gap-3">
-                              <input type="checkbox" name="charger" checked={formData.charger} onChange={handleInputChange} className="w-4 h-4" />
-                              <span className="font-medium text-gray-700">Charger</span>
-                            </label>
-                            <div>
-                              {formData.charger && (
-                                <input type="text" name="chargerSerial" value={formData.chargerSerial} onChange={handleInputChange} placeholder="Charger serial" className="w-full px-3 py-2 border rounded-md" />
-                              )}
-                            </div>
+                              <label className="flex items-center gap-3">
+                                <input type="checkbox" name="charger" checked={formData.charger} onChange={handleInputChange} className="w-4 h-4" />
+                                <span className="font-medium text-gray-700">Charger</span>
+                              </label>
+                              <div>
+                                {formData.charger && (
+                                  <input type="text" name="chargerSerial" value={formData.chargerSerial} onChange={handleInputChange} placeholder="Serial" className="w-full px-3 py-2 border rounded-md text-sm" />
+                                )}
+                              </div>
 
-                            <label className="flex items-center gap-3">
-                              <input type="checkbox" name="mouse" checked={formData.mouse} onChange={handleInputChange} className="w-4 h-4" />
-                              <span className="font-medium text-gray-700">Mouse</span>
-                            </label>
-                            <div>
-                              {formData.mouse && (
-                                <input type="text" name="mouseSerial" value={formData.mouseSerial} onChange={handleInputChange} placeholder="Mouse serial" className="w-full px-3 py-2 border rounded-md" />
-                              )}
-                            </div>
+                              <label className="flex items-center gap-3">
+                                <input type="checkbox" name="mouse" checked={formData.mouse} onChange={handleInputChange} className="w-4 h-4" />
+                                <span className="font-medium text-gray-700">Mouse</span>
+                              </label>
+                              <div>
+                                {formData.mouse && (
+                                  <input type="text" name="mouseSerial" value={formData.mouseSerial} onChange={handleInputChange} placeholder="Serial" className="w-full px-3 py-2 border rounded-md text-sm" />
+                                )}
+                              </div>
 
-                            <label className="flex items-center gap-3">
-                              <input type="checkbox" name="keyboard" checked={formData.keyboard} onChange={handleInputChange} className="w-4 h-4" />
-                              <span className="font-medium text-gray-700">Keyboard</span>
-                            </label>
-                            <div>
-                              {formData.keyboard && (
-                                <input type="text" name="keyboardSerial" value={formData.keyboardSerial} onChange={handleInputChange} placeholder="Keyboard serial" className="w-full px-3 py-2 border rounded-md" />
-                              )}
-                            </div>
+                              <label className="flex items-center gap-3">
+                                <input type="checkbox" name="keyboard" checked={formData.keyboard} onChange={handleInputChange} className="w-4 h-4" />
+                                <span className="font-medium text-gray-700">Keyboard</span>
+                              </label>
+                              <div>
+                                {formData.keyboard && (
+                                  <input type="text" name="keyboardSerial" value={formData.keyboardSerial} onChange={handleInputChange} placeholder="Serial" className="w-full px-3 py-2 border rounded-md text-sm" />
+                                )}
+                              </div>
 
-                            <label className="flex items-center gap-3">
-                              <input type="checkbox" name="monitor" checked={formData.monitor} onChange={handleInputChange} className="w-4 h-4" />
-                              <span className="font-medium text-gray-700">Monitor</span>
-                            </label>
-                            <div>
-                              {formData.monitor && (
-                                <input type="text" name="monitorSerial" value={formData.monitorSerial} onChange={handleInputChange} placeholder="Monitor serial" className="w-full px-3 py-2 border rounded-md" />
-                              )}
-                            </div>
+                              <label className="flex items-center gap-3">
+                                <input type="checkbox" name="monitor" checked={formData.monitor} onChange={handleInputChange} className="w-4 h-4" />
+                                <span className="font-medium text-gray-700">Monitor</span>
+                              </label>
+                              <div>
+                                {formData.monitor && (
+                                  <input type="text" name="monitorSerial" value={formData.monitorSerial} onChange={handleInputChange} placeholder="Serial" className="w-full px-3 py-2 border rounded-md text-sm" />
+                                )}
+                              </div>
 
-                            <label className="flex items-center gap-3">
-                              <input type="checkbox" name="other" checked={formData.other} onChange={handleInputChange} className="w-4 h-4" />
-                              <span className="font-medium text-gray-700">Other</span>
-                            </label>
-                            <div>
-                              {formData.other && (
-                                <>
-                                  <input type="text" name="otherName" value={formData.otherName} onChange={handleInputChange} placeholder="Other resource name" className="w-full px-3 py-2 border rounded-md mb-2" />
-                                  <input type="text" name="otherSerial" value={formData.otherSerial} onChange={handleInputChange} placeholder="Other serial" className="w-full px-3 py-2 border rounded-md" />
-                                </>
-                              )}
+                              <label className="flex items-center gap-3">
+                                <input type="checkbox" name="mobile" checked={formData.mobile} onChange={handleInputChange} className="w-4 h-4" />
+                                <span className="font-medium text-gray-700">Mobile</span>
+                              </label>
+                              <div>
+                                {formData.mobile && (
+                                  <input type="text" name="mobileSerial" value={formData.mobileSerial} onChange={handleInputChange} placeholder="IMEI / Serial" className="w-full px-3 py-2 border rounded-md text-sm" />
+                                )}
+                              </div>
                             </div>
                           </div>
 
-                          <div className="mt-4">
+                          {/* Dynamic Resources Section */}
+                          <div className="border-t border-gray-200 pt-6">
+                            <h4 className="text-sm font-semibold text-gray-800 mb-3">Add Custom Resources</h4>
+                            <div className="flex gap-2 mb-4">
+                              <input
+                                type="text"
+                                name="newResourceName"
+                                value={formData.newResourceName}
+                                onChange={handleInputChange}
+                                placeholder="Resource name (e.g., Headphones, Monitor Stand, Docking Station)"
+                                className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <input
+                                type="text"
+                                name="newResourceSerial"
+                                value={formData.newResourceSerial}
+                                onChange={handleInputChange}
+                                placeholder="Serial/Model (optional)"
+                                className="flex-1 px-3 py-2 border rounded-md text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
+                              />
+                              <button
+                                type="button"
+                                onClick={addDynamicResource}
+                                disabled={!formData.newResourceName.trim()}
+                                className="px-4 py-2 bg-blue-500 text-white rounded-md hover:bg-blue-600 disabled:bg-gray-300 text-sm font-medium transition"
+                              >
+                                <Plus className="w-4 h-4" />
+                              </button>
+                            </div>
+
+                            {/* Display Added Custom Resources */}
+                            {formData.dynamicResources.length > 0 && (
+                              <div className="space-y-2 mb-4">
+                                {formData.dynamicResources.map((resource) => (
+                                  <div key={resource.id} className="flex items-center justify-between p-2 bg-white rounded-md border border-gray-200">
+                                    <div className="flex-1">
+                                      <p className="text-sm font-medium text-gray-800">{resource.name}</p>
+                                      <p className="text-xs text-gray-500">{resource.serial}</p>
+                                    </div>
+                                    <button
+                                      type="button"
+                                      onClick={() => removeDynamicResource(resource.id)}
+                                      className="p-2 text-red-500 hover:bg-red-50 rounded-md"
+                                      title="Remove resource"
+                                    >
+                                      <X className="w-4 h-4" />
+                                    </button>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          <div className="mt-4 border-t border-gray-200 pt-4">
                             <label className="block text-sm font-semibold text-slate-700 mb-2">Notes</label>
                             <textarea name="resourcesNote" value={formData.resourcesNote} onChange={handleInputChange} placeholder="Add notes about the resource allocation or special instructions" className="w-full px-4 py-3 border rounded-xl focus:outline-none focus:ring-2 border-blue-200" rows={3} />
                           </div>
@@ -843,6 +946,10 @@ const EmployeeOnboarding = () => {
                       <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">Phone</p>
                       <p className="text-lg font-bold text-gray-900 mt-2">{formData.phone}</p>
                     </div>
+                    <div className="p-4 bg-gray-50 rounded-xl">
+                      <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">CNIC</p>
+                      <p className="text-lg font-bold text-gray-900 mt-2">{formData.cnic || 'Not provided'}</p>
+                    </div>
                     <div className="col-span-2 p-4 bg-gray-50 rounded-xl">
                       <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">Address</p>
                       <p className="text-lg font-bold text-gray-900 mt-2">{formData.address}</p>
@@ -859,7 +966,7 @@ const EmployeeOnboarding = () => {
                     )}
 
                     {(
-                      formData.laptop || formData.charger || formData.mouse || formData.keyboard || formData.monitor || formData.other
+                      formData.laptop || formData.charger || formData.mouse || formData.keyboard || formData.monitor || formData.mobile || formData.dynamicResources.length > 0
                     ) && (
                       <div className="col-span-2 p-4 bg-gray-50 rounded-xl">
                         <p className="text-xs text-gray-600 font-medium uppercase tracking-wide">Resources Issued</p>
@@ -881,11 +988,22 @@ const EmployeeOnboarding = () => {
                           {formData.monitor && (
                             <div className="flex items-center justify-between text-sm">Monitor {formData.monitorSerial && `• ${formData.monitorSerial}`}</div>
                           )}
-                          {formData.other && (
-                            <div className="flex items-center justify-between text-sm">{formData.otherName} {formData.otherSerial && `• ${formData.otherSerial}`}</div>
+                          {formData.mobile && (
+                            <div className="flex items-center justify-between text-sm">Mobile {formData.mobileSerial && `• ${formData.mobileSerial}`}</div>
+                          )}
+                          {formData.dynamicResources.length > 0 && (
+                            <div className="mt-2 pt-2 border-t border-gray-200">
+                              <p className="text-xs font-semibold text-gray-700 mb-2">Custom Resources:</p>
+                              {formData.dynamicResources.map((resource) => (
+                                <div key={resource.id} className="flex items-center justify-between text-sm ml-2">
+                                  <span>{resource.name}</span>
+                                  <span className="text-xs text-gray-600">{resource.serial}</span>
+                                </div>
+                              ))}
+                            </div>
                           )}
                           {formData.resourcesNote && (
-                            <div className="text-sm text-gray-700 mt-2">Note: {formData.resourcesNote}</div>
+                            <div className="text-sm text-gray-700 mt-2 pt-2 border-t border-gray-200">Note: {formData.resourcesNote}</div>
                           )}
                         </div>
                       </div>

@@ -1,7 +1,9 @@
 // components/LoginPage.jsx
+//
 import React, { useState } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
+import { prepareLoginDeviceInfo } from '../utils/systemDeviceInfo';
 
 const LoginPage = () => {
   const { login } = useAuth();
@@ -53,72 +55,109 @@ const LoginPage = () => {
     if (Object.keys(newErrors).length === 0) {
       setIsLoading(true);
       try {
-        console.log('🔐 Sending login request to backend...');
-        
-        // Call the backend login API
-        const response = await fetch('http://localhost:5000/api/v1/auth/login', {
+        // Get device information
+        const deviceInfo = await prepareLoginDeviceInfo();
+
+        // Send login request to backend
+        const response = await fetch('/api/v1/auth/login', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({
             email: formData.email,
-            password: formData.password
+            password: formData.password,
+            ...deviceInfo
           })
         });
 
         const data = await response.json();
 
         if (!response.ok) {
-          console.error('❌ Login failed:', data.message);
-          setErrors({ submit: data.message || 'Invalid email or password. Please try again.' });
+          setErrors({ submit: data.message || 'Invalid email or password' });
+          setIsLoading(false);
           return;
         }
 
-        console.log('✅ Login successful:', data);
-
-        const user = data.data.user;
-        const token = data.data.token;
-
-        // Check if password change is required
-        if (user.requestPasswordChange) {
-          console.log('⚠️ Password change required on first login');
-          // Store temp token and redirect to password change
-          localStorage.setItem('tempToken', token);
-          localStorage.setItem('tempUser', JSON.stringify(user));
-          navigate('/change-password');
-          return;
-        }
-
-        // Login through AuthContext with token
-        login({
-          id: user.id,
-          email: user.email,
-          name: user.name,
-          role: user.role,
-          department: user.department,
-          position: user.position,
-          employeeId: user.employeeId,
-          phone: user.phone
-        }, user.role, token);
+        // Extract user role from response
+        // For employees: role is the department name from backend
+        // Map department to proper role: admin, hr, or employee
+        const backendRole = data.data.role || '';
+        const department = data.data.department || '';
         
-        // Navigate based on role
-        switch(user.role) {
-          case 'admin':
-            navigate('/admin/dashboard');
-            break;
-          case 'hr':
-            navigate('/hr/dashboard');
-            break;
-          case 'employee':
-            navigate('/employee/dashboard');
-            break;
-          case 'super_admin':
-            navigate('/super-admin/dashboard');
-            break;
-          default:
-            navigate('/');
+        let userRole = 'employee'; // Default
+        
+        if (backendRole.toLowerCase() === 'admin') {
+          userRole = 'admin';
+        } else if (department.toLowerCase() === 'hr' || backendRole.toLowerCase() === 'hr') {
+          userRole = 'hr';
+        } else {
+          userRole = 'employee'; // All other departments are treated as employees
         }
+
+        console.log('✅ Login successful:', data.data);
+        console.log('Backend Role:', backendRole, 'Department:', department);
+        console.log('Mapped User Role:', userRole);
+
+        // Login with real user data from backend
+        login({
+          id: data.data.id,
+          email: data.data.email,
+          name: data.data.name,
+          employeeId: data.data.employee_id,
+          department: data.data.department
+        }, userRole, data.data.token);
+
+        // Store user data in localStorage
+        localStorage.setItem('user', JSON.stringify({
+          userId: data.data.id,
+          email: data.data.email,
+          name: data.data.name,
+          role: userRole,
+          employeeId: data.data.employee_id,
+          department: data.data.department
+        }));
+        localStorage.setItem('token', data.data.token);
+
+        // Auto check-in for employees (not admin or HR)
+        if (userRole === 'employee') {
+          try {
+            const checkInResponse = await fetch('/api/v1/attendance/check-in', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/json',
+                'Authorization': `Bearer ${data.data.token}`
+              },
+              body: JSON.stringify({
+                employee_id: data.data.employee_id || data.data.id,
+                email: data.data.email,
+                name: data.data.name,
+                device_info: deviceInfo.deviceType,
+                ip_address: deviceInfo.ipAddress
+              })
+            });
+
+            if (checkInResponse.ok) {
+              const checkInData = await checkInResponse.json();
+              console.log('✅ Auto check-in successful:', checkInData);
+            } else {
+              console.log('⚠️ Check-in already recorded for today');
+            }
+          } catch (checkInError) {
+            console.warn('⚠️ Auto check-in failed (may already be checked in):', checkInError.message);
+            // Don't block login if check-in fails
+          }
+        }
+
+        // Navigate based on role
+        if (userRole === 'admin') {
+          navigate('/admin/dashboard');
+        } else if (userRole === 'hr') {
+          navigate('/hr/dashboard');
+        } else {
+          navigate('/employee/dashboard');
+        }
+        
       } catch (error) {
         console.error('❌ Login error:', error);
         setErrors({ submit: error.message || 'Login failed. Please try again.' });

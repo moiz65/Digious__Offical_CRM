@@ -1,3 +1,4 @@
+// context/AuthContext.jsx
 import React, { createContext, useContext, useState, useEffect } from 'react';
 
 const AuthContext = createContext();
@@ -12,12 +13,20 @@ export const AuthProvider = ({ children }) => {
   useEffect(() => {
     const storedUser = localStorage.getItem('user');
     const storedRole = localStorage.getItem('userRole');
-    const storedToken = localStorage.getItem('authToken');
+    const storedToken = localStorage.getItem('token') || localStorage.getItem('authToken');
+    
+    console.log('🔐 AuthContext: Checking stored auth...', { storedUser: !!storedUser, storedRole, storedToken: !!storedToken });
     
     if (storedUser && storedRole && storedToken) {
-      setUser(JSON.parse(storedUser));
-      setRole(storedRole);
-      setToken(storedToken);
+      try {
+        setUser(JSON.parse(storedUser));
+        setRole(storedRole);
+        setToken(storedToken);
+        console.log('✅ AuthContext: User restored from localStorage');
+      } catch (error) {
+        console.error('❌ AuthContext: Error parsing stored user:', error);
+        localStorage.clear();
+      }
     }
     setIsLoading(false);
   }, []);
@@ -28,17 +37,23 @@ export const AuthProvider = ({ children }) => {
       loginTime: new Date().toISOString()
     };
     
+    const normalizedRole = userRole?.toLowerCase() || 'employee';
+    
+    console.log('🔐 AuthContext: Logging in user...', { email: userData.email, role: normalizedRole });
+    
     setUser(completeUserData);
-    setRole(userRole);
+    setRole(normalizedRole);
     if (authToken) {
       setToken(authToken);
     }
     
-    // Store in localStorage
+    // Store in localStorage with both key names for compatibility
     localStorage.setItem('user', JSON.stringify(completeUserData));
-    localStorage.setItem('userRole', userRole);
+    localStorage.setItem('userRole', normalizedRole);
     if (authToken) {
+      localStorage.setItem('token', authToken);
       localStorage.setItem('authToken', authToken);
+      console.log('✅ AuthContext: Token stored in localStorage');
     }
   };
 

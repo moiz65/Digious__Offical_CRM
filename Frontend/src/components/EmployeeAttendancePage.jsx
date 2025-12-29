@@ -1,3 +1,4 @@
+// EmployeeAttendancePage.jsx
 import { useState, useEffect } from 'react';
 import {
   Calendar,
@@ -91,109 +92,204 @@ export const useAttendance = () => {
     status: 'pending'
   });
 
-  const handleSystemCheckIn = () => {
-    const now = new Date();
-    const expectedStart = new Date();
-    expectedStart.setHours(9, 15, 0, 0);
-    
-    const isLate = now > expectedStart;
-    
-    setSystemAttendance({
-      checkedIn: true,
-      checkInTime: now,
-      checkOutTime: null,
-      totalWorkingTime: 0,
-      isOnBreak: false,
-      lastUpdate: now,
-      status: isLate ? 'late' : 'present'
-    });
-
-    // Add to attendance data
-    const today = now.toISOString().split('T')[0];
-    setAttendanceData(prev => {
-      const existingIndex = prev.findIndex(day => day.date === today);
+  const handleSystemCheckIn = async () => {
+    try {
+      // Try both token storage keys
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
       
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          status: isLate ? 'late' : 'present',
-          checkIn: now.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: true 
-          }),
-          remarks: isLate ? 'Late arrival' : 'On time'
-        };
-        return updated;
-      } else {
-        return [...prev, {
-          date: today,
-          day: now.getDate(),
-          status: isLate ? 'late' : 'present',
-          checkIn: now.toLocaleTimeString('en-US', { 
-            hour: '2-digit', 
-            minute: '2-digit',
-            hour12: true 
-          }),
-          checkOut: '-',
-          hours: '0.0',
-          remarks: isLate ? 'Late arrival' : 'On time'
-        }];
-      }
-    });
+      // Use userId (numeric ID) for the API, not employeeId (string ID)
+      const employeeId = user.userId || user.id || user.employee_id || user.employeeId || 2;
+      const email = user.email || 'test@example.com';
+      const name = user.name || 'Employee';
 
-    return {
-      timeString: now.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      }),
-      isLate: isLate
-    };
+      if (!token) {
+        throw new Error('Authentication token not found. Please login first.');
+      }
+
+      console.log('Check-in request:', { employeeId, email, name, token: token.substring(0, 20) + '...' });
+
+      const response = await fetch(
+        'http://localhost:5000/api/v1/attendance/check-in',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            employee_id: employeeId,
+            email: email,
+            name: name,
+            device_info: navigator.userAgent,
+            ip_address: '127.0.0.1'
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Check-in failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        const now = new Date();
+        const expectedStart = new Date();
+        expectedStart.setHours(9, 15, 0, 0);
+        const isLate = now > expectedStart;
+
+        setSystemAttendance(prev => ({
+          ...prev,
+          checkedIn: true,
+          checkInTime: prev.checkInTime || now,  // Keep existing check-in time if already checked in
+          checkOutTime: null,
+          totalWorkingTime: 0,
+          isOnBreak: false,
+          lastUpdate: now,
+          status: isLate ? 'late' : 'present'
+        }));
+        
+        console.log('Check-in response:', data.message);
+
+        // Update attendance data
+        const today = now.toISOString().split('T')[0];
+        setAttendanceData(prev => {
+          const existingIndex = prev.findIndex(day => day.date === today);
+          
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              status: isLate ? 'late' : 'present',
+              checkIn: now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+              }),
+              remarks: isLate ? 'Late arrival' : 'On time'
+            };
+            return updated;
+          } else {
+            return [...prev, {
+              date: today,
+              day: now.getDate(),
+              status: isLate ? 'late' : 'present',
+              checkIn: now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+              }),
+              checkOut: '-',
+              hours: '0.0',
+              remarks: isLate ? 'Late arrival' : 'On time'
+            }];
+          }
+        });
+
+        return {
+          timeString: now.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+          }),
+          isLate: isLate
+        };
+      } else {
+        throw new Error(data.message || 'Check-in failed');
+      }
+    } catch (error) {
+      console.error('Check-in error:', error.message);
+      throw error;
+    }
   };
 
-  const handleSystemCheckOut = () => {
-    const now = new Date();
-    const hours = systemAttendance.totalWorkingTime / 60;
-    
-    setSystemAttendance(prev => ({
-      ...prev,
-      checkedIn: false,
-      checkOutTime: now,
-      lastUpdate: now
-    }));
-
-    // Update attendance data
-    const today = now.toISOString().split('T')[0];
-    setAttendanceData(prev => {
-      const existingIndex = prev.findIndex(day => day.date === today);
+  const handleSystemCheckOut = async () => {
+    try {
+      // Try both token storage keys
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
       
-      if (existingIndex >= 0) {
-        const updated = [...prev];
-        updated[existingIndex] = {
-          ...updated[existingIndex],
-          checkOut: now.toLocaleTimeString('en-US', { 
+      // Use userId (numeric ID) for the API, not employeeId (string ID)
+      const employeeId = user.userId || user.id || user.employee_id || user.employeeId || 2;
+
+      if (!token) {
+        throw new Error('Authentication token not found. Please login first.');
+      }
+
+      const response = await fetch(
+        'http://localhost:5000/api/v1/attendance/check-out',
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            employee_id: employeeId
+          })
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.message || `Check-out failed: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+
+      if (data.success) {
+        const now = new Date();
+        const netWorkingMinutes = data.data?.net_working_time_minutes || 0;
+        const hours = netWorkingMinutes / 60;
+
+        setSystemAttendance(prev => ({
+          ...prev,
+          checkedIn: false,
+          checkOutTime: now,
+          lastUpdate: now,
+          totalWorkingTime: netWorkingMinutes
+        }));
+
+        // Update attendance data
+        const today = now.toISOString().split('T')[0];
+        setAttendanceData(prev => {
+          const existingIndex = prev.findIndex(day => day.date === today);
+          
+          if (existingIndex >= 0) {
+            const updated = [...prev];
+            updated[existingIndex] = {
+              ...updated[existingIndex],
+              checkOut: now.toLocaleTimeString('en-US', { 
+                hour: '2-digit', 
+                minute: '2-digit',
+                hour12: true 
+              }),
+              hours: hours.toFixed(1),
+              remarks: hours >= 9 ? 'Full day' : 'Short day'
+            };
+            return updated;
+          } else {
+            return prev;
+          }
+        });
+
+        return {
+          timeString: now.toLocaleTimeString('en-US', { 
             hour: '2-digit', 
             minute: '2-digit',
             hour12: true 
           }),
-          hours: hours.toFixed(1),
-          remarks: hours >= 9 ? 'Full day' : 'Short day'
+          hours: hours.toFixed(1)
         };
-        return updated;
+      } else {
+        throw new Error(data.message || 'Check-out failed');
       }
-      return prev;
-    });
-
-    return {
-      timeString: now.toLocaleTimeString('en-US', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: true 
-      }),
-      hours: hours.toFixed(1)
-    };
+    } catch (error) {
+      console.error('Check-out error:', error.message);
+      throw error;
+    }
   };
 
   const updateWorkingTime = () => {
@@ -242,6 +338,29 @@ export const useAttendance = () => {
       return todayData;
     }
 
+    // Fallback: if no record in attendanceData but systemAttendance shows checked in,
+    // return the system state
+    if (systemAttendance.checkedIn && systemAttendance.checkInTime) {
+      return {
+        date: today,
+        day: new Date().getDate(),
+        status: systemAttendance.status || 'present',
+        checkIn: systemAttendance.checkInTime.toLocaleTimeString('en-US', { 
+          hour: '2-digit', 
+          minute: '2-digit',
+          hour12: true 
+        }),
+        checkOut: systemAttendance.checkOutTime ? 
+          systemAttendance.checkOutTime.toLocaleTimeString('en-US', { 
+            hour: '2-digit', 
+            minute: '2-digit',
+            hour12: true 
+          }) : '-',
+        hours: (systemAttendance.totalWorkingTime / 60).toFixed(1),
+        remarks: systemAttendance.checkOutTime ? 'Checked out' : 'Currently working'
+      };
+    }
+
     return {
       date: today,
       day: new Date().getDate(),
@@ -251,7 +370,7 @@ export const useAttendance = () => {
           hour: '2-digit', 
           minute: '2-digit',
           hour12: true 
-        }) : '-',
+        }) : 'Invalid Date',
       checkOut: systemAttendance.checkOutTime ? 
         systemAttendance.checkOutTime.toLocaleTimeString('en-US', { 
           hour: '2-digit', 
@@ -285,16 +404,203 @@ export const useAttendance = () => {
     };
   };
 
+  // Fetch attendance data function
+  const fetchAttendanceData = async () => {
+    try {
+      // Get token from localStorage (try both keys)
+      const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+      const user = JSON.parse(localStorage.getItem('user') || '{}');
+      
+      // Use userId (numeric ID) for the API, not employeeId (string ID)
+      const employeeId = user.userId || user.id || user.employee_id || user.employeeId || 2;
+      
+      if (!token) {
+        console.log('No authentication token found - skipping attendance fetch');
+        return;
+      }
+
+      console.log('Fetching attendance for employee:', employeeId);
+
+      // Fetch today's attendance
+      const response = await fetch(
+        `http://localhost:5000/api/v1/attendance/today/${employeeId}`,
+        {
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          }
+        }
+      );
+
+      if (!response.ok) {
+        console.warn(`Attendance fetch status: ${response.status} - ${response.statusText}`);
+        return;
+      }
+
+      const data = await response.json();
+      
+      if (data.success && data.data) {
+        const attendanceRecord = data.data;
+        
+        // Extract date as YYYY-MM-DD format (handle ISO timestamps)
+        const attendanceDateStr = attendanceRecord.attendance_date.split('T')[0];
+        
+        // Parse check-in and check-out times
+        const checkInTime = attendanceRecord.check_in_time 
+          ? new Date(`${attendanceDateStr}T${attendanceRecord.check_in_time}`)
+          : null;
+        const checkOutTime = attendanceRecord.check_out_time
+          ? new Date(`${attendanceDateStr}T${attendanceRecord.check_out_time}`)
+          : null;
+        
+        // Update system attendance state to reflect API data
+        // Employee is considered checked in if they have a check-in time and no check-out time
+        setSystemAttendance(prev => ({
+          ...prev,
+          checkedIn: !!checkInTime && !checkOutTime,
+          checkInTime: checkInTime,
+          checkOutTime: checkOutTime,
+          totalWorkingTime: attendanceRecord.net_working_time_minutes || 0,
+          status: attendanceRecord.status?.toLowerCase() || 'present'
+        }));
+        
+        // Format the attendance data for display
+        const formattedData = [{
+          date: attendanceDateStr,
+          day: new Date(attendanceDateStr).getDate(),
+          status: attendanceRecord.status?.toLowerCase() || 'present',
+          checkIn: checkInTime
+            ? checkInTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+            : '-',
+          checkOut: checkOutTime
+            ? checkOutTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+            : '-',
+          hours: attendanceRecord.net_working_time_minutes ? (attendanceRecord.net_working_time_minutes / 60).toFixed(1) : '0.0',
+          remarks: attendanceRecord.remarks || (checkOutTime ? 'Checked out' : 'Active session'),
+          breaks: attendanceRecord.breaks || [],
+          total_breaks_taken: attendanceRecord.total_breaks_taken || 0,
+          total_break_duration_minutes: attendanceRecord.total_break_duration_minutes || 0,
+          // Include all break count fields from the API response
+          smoke_break_count: attendanceRecord.smoke_break_count || 0,
+          smoke_break_duration_minutes: attendanceRecord.smoke_break_duration_minutes || 0,
+          dinner_break_count: attendanceRecord.dinner_break_count || 0,
+          dinner_break_duration_minutes: attendanceRecord.dinner_break_duration_minutes || 0,
+          washroom_break_count: attendanceRecord.washroom_break_count || 0,
+          washroom_break_duration_minutes: attendanceRecord.washroom_break_duration_minutes || 0,
+          prayer_break_count: attendanceRecord.prayer_break_count || 0,
+          prayer_break_duration_minutes: attendanceRecord.prayer_break_duration_minutes || 0
+        }];
+        
+        setAttendanceData(formattedData);
+      }
+    } catch (error) {
+      console.error('Error fetching attendance:', error);
+    }
+  };
+
+  // Fetch attendance data on component mount
+  useEffect(() => {
+    fetchAttendanceData();
+    
+    // Also fetch historical/monthly data for the attendance sheet
+    const fetchHistoricalData = async () => {
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const employeeId = user.userId || user.id || user.employee_id || user.employeeId || 2;
+        
+        if (!token) return;
+        
+        const currentYear = new Date().getFullYear();
+        const currentMonth = new Date().getMonth() + 1;
+        
+        console.log(`📅 Fetching attendance for ${currentMonth}/${currentYear}...`);
+        
+        const response = await fetch(
+          `http://localhost:5000/api/v1/attendance/monthly/${employeeId}?year=${currentYear}&month=${currentMonth}`,
+          {
+            headers: {
+              'Authorization': `Bearer ${token}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+        
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            console.log(`✅ Fetched ${data.data.length} historical attendance records`);
+            
+            // Convert to formatted data
+            const historicalData = data.data.map(record => {
+              const attendanceDateStr = record.attendance_date.split('T')[0];
+              const checkInTime = record.check_in_time 
+                ? new Date(`${attendanceDateStr}T${record.check_in_time}`)
+                : null;
+              const checkOutTime = record.check_out_time
+                ? new Date(`${attendanceDateStr}T${record.check_out_time}`)
+                : null;
+                
+              return {
+                date: attendanceDateStr,
+                day: new Date(attendanceDateStr).getDate(),
+                status: record.status?.toLowerCase() || 'present',
+                checkIn: checkInTime
+                  ? checkInTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+                  : '-',
+                checkOut: checkOutTime
+                  ? checkOutTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })
+                  : '-',
+                hours: record.net_working_time_minutes ? (record.net_working_time_minutes / 60).toFixed(1) : '0.0',
+                remarks: record.remarks || (checkOutTime ? 'Checked out' : 'Active session'),
+                breaks: record.breaks || [],
+                total_breaks_taken: record.total_breaks_taken || 0,
+                total_break_duration_minutes: record.total_break_duration_minutes || 0,
+                smoke_break_count: record.smoke_break_count || 0,
+                smoke_break_duration_minutes: record.smoke_break_duration_minutes || 0,
+                dinner_break_count: record.dinner_break_count || 0,
+                dinner_break_duration_minutes: record.dinner_break_duration_minutes || 0,
+                washroom_break_count: record.washroom_break_count || 0,
+                washroom_break_duration_minutes: record.washroom_break_duration_minutes || 0,
+                prayer_break_count: record.prayer_break_count || 0,
+                prayer_break_duration_minutes: record.prayer_break_duration_minutes || 0
+              };
+            });
+            
+            // Merge historical data with today's data, avoiding duplicates
+            setAttendanceData(prev => {
+              const merged = [...historicalData];
+              const todayDateStr = new Date().toISOString().split('T')[0];
+              
+              // Only add previous records (not today's) since today's is already in attendanceData
+              if (prev.length > 0 && prev[0].date !== todayDateStr) {
+                merged.unshift(prev[0]);
+              }
+              
+              return merged;
+            });
+          }
+        }
+      } catch (error) {
+        console.error('Error fetching historical attendance:', error);
+      }
+    };
+    
+    fetchHistoricalData();
+  }, []);
+
   return {
     attendanceData,
     systemAttendance,
+    setSystemAttendance,
     handleSystemCheckIn,
     handleSystemCheckOut,
     updateWorkingTime,
     setBreakStatus,
     setAttendanceData,
     getTodayStatus,
-    getAttendanceStats
+    getAttendanceStats,
+    fetchAttendanceData
   };
 };
 
@@ -923,54 +1229,22 @@ export function EmployeeAttendancePage() {
   const {
     attendanceData,
     systemAttendance,
+    setSystemAttendance,
     handleSystemCheckIn,
     handleSystemCheckOut,
     updateWorkingTime,
     setBreakStatus,
     setAttendanceData,
     getTodayStatus,
-    getAttendanceStats
+    getAttendanceStats,
+    fetchAttendanceData
   } = useAttendance();
 
   const [isLoading, setIsLoading] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
   const [activeTab, setActiveTab] = useState('dashboard'); // 'dashboard' or 'attendance-sheet'
-  
-  // Enhanced Break Data with overtime tracking
-  const [breakData, setBreakData] = useState({
-    smoke: { 
-      active: false, 
-      startTime: null,
-      totalDuration: 0, 
-      exceededDuration: 0,
-      breakLimit: 2,
-      breakCount: 0
-    },
-    dinner: { 
-      active: false, 
-      startTime: null,
-      totalDuration: 0, 
-      exceededDuration: 0,
-      breakLimit: 60,
-      breakCount: 0
-    },
-    washroom: { 
-      active: false, 
-      startTime: null,
-      totalDuration: 0, 
-      exceededDuration: 0,
-      breakLimit: 10,
-      breakCount: 0
-    },
-    pray: { 
-      active: false, 
-      startTime: null,
-      totalDuration: 0, 
-      exceededDuration: 0,
-      breakLimit: 10,
-      breakCount: 0
-    }
-  });
+  const [breakRules, setBreakRules] = useState([]);
+  const [breakData, setBreakData] = useState({});
 
   // Overtime debt tracking
   const [overtimeDebt, setOvertimeDebt] = useState({
@@ -982,131 +1256,160 @@ export function EmployeeAttendancePage() {
     history: []
   });
 
-  // Break types
-  const breakTypes = [
-    { 
-      id: 'smoke', 
-      name: 'Smoke', 
-      icon: Cigarette, 
-      color: 'bg-orange-500',
-      limit: 2
-    },
-    { 
-      id: 'dinner', 
-      name: 'Dinner', 
-      icon: Utensils,
-      color: 'bg-purple-500',
-      limit: 40
-    },
-    { 
-      id: 'washroom', 
-      name: 'Washroom', 
-      icon: ToiletIcon, 
-      color: 'bg-blue-500',
-      limit: 10
-    },
-    { 
-      id: 'pray', 
-      name: 'Prayer', 
-      icon: Calendar1, 
-      color: 'bg-green-500',
-      limit: 10
-    }
-  ];
-
-  // Initialize sample attendance data
+  // Fetch break rules from backend
   useEffect(() => {
-    const generateSampleData = () => {
-      const sampleData = [];
-      const today = new Date();
-      
-      // Generate last 30 days of sample data
-      for (let i = 29; i >= 0; i--) {
-        const date = new Date();
-        date.setDate(today.getDate() - i);
-        const dateString = date.toISOString().split('T')[0];
-        const dayOfWeek = date.getDay();
-        
-        // Skip weekends for sample data
-        if (dayOfWeek === 0 || dayOfWeek === 6) {
-          sampleData.push({
-            date: dateString,
-            day: date.getDate(),
-            status: 'off',
-            checkIn: '-',
-            checkOut: '-',
-            hours: '0.0',
-            remarks: 'Weekend'
-          });
-          continue;
+    const fetchBreakRules = async () => {
+      try {
+        console.log('📥 Fetching break rules from backend...');
+        const response = await fetch(
+          'http://localhost:5000/api/v1/rules/break-rules',
+          {
+            headers: {
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        if (response.ok) {
+          const data = await response.json();
+          if (data.success && data.data) {
+            console.log('✅ Break rules fetched successfully:', data.data);
+            setBreakRules(data.data);
+            
+            // Initialize break data with rules from database
+            const initialBreakData = {};
+            data.data.forEach(rule => {
+              const ruleType = rule.type.toLowerCase();
+              console.log(`   🔧 Initializing break data for: ${ruleType} (${rule.limit}m limit)`);
+              initialBreakData[ruleType] = {
+                active: false,
+                startTime: null,
+                totalDuration: 0,
+                exceededDuration: 0,
+                breakLimit: rule.limit,
+                breakCount: 0,
+                autoEndTimer: null
+              };
+            });
+            console.log('   📊 Initial break data:', initialBreakData);
+            setBreakData(prev => ({ ...prev, ...initialBreakData }));
+          }
+        } else {
+          console.warn('❌ Failed to fetch break rules, using defaults');
         }
-        
-        // For today, use actual data
-        if (i === 0) {
-          const todayStatus = getTodayStatus();
-          sampleData.push(todayStatus);
-          continue;
-        }
-        
-        // Generate random attendance for past days
-        const statuses = ['present', 'present', 'present', 'present', 'late', 'absent'];
-        const randomStatus = statuses[Math.floor(Math.random() * statuses.length)];
-        
-        let checkIn, checkOut, hours, remarks;
-        
-        switch (randomStatus) {
-          case 'present':
-            checkIn = '09:00 AM';
-            checkOut = '06:00 PM';
-            hours = '9.0';
-            remarks = 'On time';
-            break;
-          case 'late':
-            checkIn = '09:30 AM';
-            checkOut = '06:00 PM';
-            hours = '8.5';
-            remarks = 'Late arrival';
-            break;
-          case 'absent':
-            checkIn = '-';
-            checkOut = '-';
-            hours = '0.0';
-            remarks = 'Absent';
-            break;
-          default:
-            checkIn = '-';
-            checkOut = '-';
-            hours = '0.0';
-            remarks = 'Not recorded';
-        }
-        
-        sampleData.push({
-          date: dateString,
-          day: date.getDate(),
-          status: randomStatus,
-          checkIn,
-          checkOut,
-          hours,
-          remarks
-        });
+      } catch (error) {
+        console.error('❌ Error fetching break rules:', error);
+        // Will use default breakTypes if fetch fails
       }
-      
-      return sampleData;
     };
 
-    const sampleData = generateSampleData();
-    setAttendanceData(sampleData);
+    fetchBreakRules();
   }, []);
+
+    // Sync breakData with attendance data (component-level) when attendance is updated
+    useEffect(() => {
+      if (!attendanceData || attendanceData.length === 0) return;
+      const record = attendanceData[0];
+
+      console.log('🔄 Syncing breakData from attendanceData in component...');
+      console.log('   Record keys:', Object.keys(record));
+      console.log('   Full record:', record);
+
+      setBreakData(prev => {
+        const updated = { ...prev };
+
+        const breakTypeMap = {
+          smoke: { countField: 'smoke_break_count', durationField: 'smoke_break_duration_minutes' },
+          dinner: { countField: 'dinner_break_count', durationField: 'dinner_break_duration_minutes' },
+          washroom: { countField: 'washroom_break_count', durationField: 'washroom_break_duration_minutes' },
+          prayer: { countField: 'prayer_break_count', durationField: 'prayer_break_duration_minutes' }
+        };
+
+        Object.keys(breakTypeMap).forEach(type => {
+          const fields = breakTypeMap[type];
+          const count = record[fields.countField] || 0;
+          const duration = record[fields.durationField] || 0;
+
+          console.log(`   Syncing ${type}: count=${count} (from ${fields.countField}), duration=${duration}m (from ${fields.durationField})`);
+
+          const prevInfo = prev[type] || { active: false, startTime: null, totalDuration: 0, exceededDuration: 0, breakLimit: 0, breakCount: 0 };
+
+          updated[type] = {
+            ...prevInfo,
+            breakCount: count,
+            totalDuration: duration
+          };
+        });
+
+        console.log('✅ Component breakData synced:', updated);
+        return updated;
+      });
+    }, [attendanceData]);
+
+  // Map break rules to icons and colors
+  const breakTypeMap = {
+    'smoke': { icon: Cigarette, color: 'bg-orange-500' },
+    'dinner': { icon: Utensils, color: 'bg-purple-500' },
+    'washroom': { icon: ToiletIcon, color: 'bg-blue-500' },
+    'pray': { icon: Calendar1, color: 'bg-green-500' },
+    'prayer': { icon: Calendar1, color: 'bg-green-500' }
+  };
+
+  // Build breakTypes array dynamically from breakRules
+  const breakTypes = breakRules.length > 0 
+    ? breakRules.map(rule => {
+        const typeKey = rule.type.toLowerCase();
+        const mapping = breakTypeMap[typeKey] || { icon: Coffee, color: 'bg-gray-500' };
+        return {
+          id: typeKey,
+          name: rule.name,
+          icon: mapping.icon,
+          color: mapping.color,
+          limit: rule.limit
+        };
+      })
+    : [
+        { 
+          id: 'smoke', 
+          name: 'Smoke', 
+          icon: Cigarette, 
+          color: 'bg-orange-500',
+          limit: 2
+        },
+        { 
+          id: 'dinner', 
+          name: 'Dinner', 
+          icon: Utensils,
+          color: 'bg-purple-500',
+          limit: 40
+        },
+        { 
+          id: 'washroom', 
+          name: 'Washroom', 
+          icon: ToiletIcon, 
+          color: 'bg-blue-500',
+          limit: 10
+        },
+        { 
+          id: 'pray', 
+          name: 'Prayer', 
+          icon: Calendar1, 
+          color: 'bg-green-500',
+          limit: 10
+        }
+      ];
 
   // Calculate total break time and exceeded time
   const calculateTotalBreakTime = () => {
-    const totalDuration = breakTypes.reduce((total, breakType) => 
-      total + breakData[breakType.id].totalDuration, 0
-    );
+    const totalDuration = breakTypes.reduce((total, breakType) => {
+      const breakInfo = breakData[breakType.id];
+      return total + (breakInfo?.totalDuration || 0);
+    }, 0);
     
-    const exceededDuration = breakTypes.reduce((total, breakType) => 
-      total + breakData[breakType.id].exceededDuration, 0
-    );
+    const exceededDuration = breakTypes.reduce((total, breakType) => {
+      const breakInfo = breakData[breakType.id];
+      return total + (breakInfo?.exceededDuration || 0);
+    }, 0);
 
     return {
       totalDuration,
@@ -1120,8 +1423,19 @@ export function EmployeeAttendancePage() {
     const breakSummary = calculateTotalBreakTime();
     const netWorkingTime = Math.max(0, systemAttendance.totalWorkingTime - breakSummary.allowedDuration);
     
-    const requiredWorkingTime = 9 * 60;
-    const overtimeRequired = Math.max(0, requiredWorkingTime - netWorkingTime + overtimeDebt.netDebt);
+    // Only calculate overtime if current time is after 6 AM
+    const now = new Date();
+    const isAfter6AM = now.getHours() >= 6;
+    
+    const requiredWorkingTime = 9 * 60; // 540 minutes
+    let overtimeRequired = 0;
+    
+    if (isAfter6AM) {
+      overtimeRequired = Math.max(0, requiredWorkingTime - netWorkingTime + overtimeDebt.netDebt);
+      console.log('📊 Overtime calculation: After 6 AM - overtime eligible');
+    } else {
+      console.log('⏱️ Overtime calculation: Before 6 AM - no overtime counted');
+    }
     
     return {
       totalBreakTime: breakSummary.totalDuration,
@@ -1146,7 +1460,7 @@ export function EmployeeAttendancePage() {
       // Update active break durations
       breakTypes.forEach(breakType => {
         const breakInfo = breakData[breakType.id];
-        if (breakInfo.active && breakInfo.startTime) {
+        if (breakInfo && breakInfo.active && breakInfo.startTime) {
           const currentDuration = (now - breakInfo.startTime) / (1000 * 60);
           
           // Check if break exceeded limit
@@ -1155,6 +1469,7 @@ export function EmployeeAttendancePage() {
             
             // Add overtime debt only once when it first exceeds
             if (exceededTime > 0 && breakInfo.exceededDuration === 0) {
+              console.log(`⚠️ BREAK EXCEEDED: ${breakType.name} - Duration: ${currentDuration.toFixed(2)}m, Limit: ${breakType.limit}m, Exceeded: ${exceededTime.toFixed(2)}m`);
               addOvertimeDebt('break', exceededTime, `${breakType.name} exceeded by ${Math.round(exceededTime)} minutes`);
             }
           }
@@ -1167,56 +1482,101 @@ export function EmployeeAttendancePage() {
 
   // Enhanced Break Management with Overtime Tracking
   const handleBreakStart = (breakType) => {
-    if (breakData[breakType].active) return;
-
     const now = new Date();
+    console.log('🔵 ════════════════════════════════════════');
+    console.log('🔵 BREAK STARTED');
+    console.log('🔵 ════════════════════════════════════════');
+    console.log('   Break Type:', breakType.toUpperCase());
+    console.log('   Start Time:', now.toLocaleTimeString());
+    console.log('   Start Date:', now.toLocaleDateString());
+    console.log('   Current breakData:', breakData[breakType]);
+    
+    if (breakData[breakType].active) {
+      console.log('   ❌ Break already active, returning');
+      return;
+    }
+
     const breakConfig = breakTypes.find(b => b.id === breakType);
     const breakLimit = breakConfig ? breakConfig.limit : 10;
+    
+    console.log('   Break Name:', breakConfig?.name || 'Unknown');
+    console.log('   Time Limit:', breakLimit, 'minutes');
+    console.log('   Auto-end will trigger at:', new Date(now.getTime() + breakLimit * 60 * 1000).toLocaleTimeString());
 
     // Set auto-end timer
     const autoEndTimer = setTimeout(() => {
+      console.log(`   ⏰ AUTO-ENDING ${breakType.toUpperCase()} break after ${breakLimit} minutes`);
       handleBreakEnd(breakType);
     }, breakLimit * 60 * 1000);
 
-    setBreakData(prev => ({
-      ...prev,
-      [breakType]: {
-        ...prev[breakType],
-        active: true,
-        startTime: now,
-        autoEndTimer: autoEndTimer,
-      }
-    }));
+    setBreakData(prev => {
+      console.log('   ✅ Setting break as active');
+      return {
+        ...prev,
+        [breakType]: {
+          ...prev[breakType],
+          active: true,
+          startTime: now,
+          autoEndTimer: autoEndTimer,
+        }
+      };
+    });
 
     // Pause working time tracking
     setBreakStatus(true);
+    console.log('   ✅ Break is now ACTIVE - Working time paused');
+    console.log('🔵 ════════════════════════════════════════\n');
   };
 
   const handleBreakEnd = (breakType) => {
-    if (!breakData[breakType].active) return;
-
     const now = new Date();
+    console.log('🔴 ════════════════════════════════════════');
+    console.log('🔴 BREAK ENDED');
+    console.log('🔴 ════════════════════════════════════════');
+    console.log('   Break Type:', breakType.toUpperCase());
+    console.log('   End Time:', now.toLocaleTimeString());
+    console.log('   Current breakData:', breakData[breakType]);
+    
+    if (!breakData[breakType].active) {
+      console.log('   ❌ Break not active, returning');
+      console.log('🔴 ════════════════════════════════════════\n');
+      return;
+    }
+
     const breakConfig = breakTypes.find(b => b.id === breakType);
     const breakLimit = breakConfig ? breakConfig.limit : 10;
+    const breakStartTime = breakData[breakType].startTime; // Capture start time before clearing
+
+    console.log('   End time:', now.toLocaleTimeString());
+    console.log('   Start time:', breakStartTime?.toLocaleTimeString());
 
     // Clear auto-end timer
     if (breakData[breakType].autoEndTimer) {
       clearTimeout(breakData[breakType].autoEndTimer);
+      console.log('   ⏰ Auto-end timer cleared');
     }
 
     setBreakData(prev => {
       const breakInfo = prev[breakType];
-      if (!breakInfo.startTime) return prev;
+      if (!breakInfo || !breakInfo.startTime) {
+        console.log('   ❌ No break info or start time');
+        return prev;
+      }
       
       const duration = (now - breakInfo.startTime) / (1000 * 60); // Calculate actual duration
       const exceeded = Math.max(0, duration - breakLimit);
       
+      console.log('   Duration:', duration.toFixed(2), 'minutes');
+      console.log('   Limit:', breakLimit, 'minutes');
+      console.log('   Exceeded:', exceeded.toFixed(2), 'minutes');
+      
       // Add to overtime debt if exceeded
       if (exceeded > 0) {
+        console.log('   ⚠️ Break exceeded! Adding to overtime debt');
         addOvertimeDebt('break', exceeded, `${breakConfig.name} exceeded by ${Math.round(exceeded)} minutes`);
       }
       
-      return {
+      const updated = {
         ...prev,
         [breakType]: {
           ...breakInfo,
@@ -1228,10 +1588,75 @@ export function EmployeeAttendancePage() {
           breakCount: breakInfo.breakCount + 1,
         }
       };
+      
+      console.log('   Updated breakData for', breakType, ':', updated[breakType]);
+      return updated;
     });
 
     // Resume working time tracking
     setBreakStatus(false);
+    console.log('   ✅ Break ended successfully');
+
+    // Save break record to database
+    const saveBreakToDatabase = async () => {
+      try {
+        const token = localStorage.getItem('token') || localStorage.getItem('authToken');
+        const user = JSON.parse(localStorage.getItem('user') || '{}');
+        const employeeId = user.userId || user.id || user.employee_id || user.employeeId || 2;
+        
+        if (!token) {
+          console.warn('⚠️ No token available, cannot save break to database');
+          return;
+        }
+
+        // Capitalize break type for backend (backend expects: Smoke, Dinner, Washroom, Prayer)
+        const capitalizedBreakType = breakType.charAt(0).toUpperCase() + breakType.slice(1);
+        const duration = (now - breakStartTime) / (1000 * 60);
+
+        console.log('💾 Attempting to save break to database...');
+        console.log('   Employee ID:', employeeId);
+        console.log('   Break Type:', breakType, '→', capitalizedBreakType);
+        console.log('   Duration:', duration.toFixed(2), 'minutes');
+        console.log('   Start Time:', breakStartTime?.toLocaleTimeString());
+        console.log('   End Time:', now.toLocaleTimeString());
+        
+        const response = await fetch('http://localhost:5000/api/v1/attendance/break', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${token}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            employee_id: employeeId,
+            break_type: capitalizedBreakType,
+            break_start_time: breakStartTime?.toTimeString().split(' ')[0],
+            break_end_time: now.toTimeString().split(' ')[0],
+            break_duration_minutes: Math.floor(duration),
+            reason: `${breakConfig.name} break`
+          })
+        });
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log('✅ Break successfully registered in database:', data);
+          
+          // Refetch attendance data to update UI with break information
+          console.log('🔄 Refetching attendance data to sync break records...');
+          setTimeout(() => {
+            fetchAttendanceData();
+          }, 300);
+        } else {
+          const errorData = await response.json().catch(() => ({}));
+          console.warn('⚠️ Failed to save break to database:', response.status, errorData.message);
+        }
+      } catch (error) {
+        console.error('❌ Error saving break to database:', error);
+      }
+    };
+
+    // Call the save function
+    saveBreakToDatabase();
+    console.log('🔴 ════════════════════════════════════════\n');
   };
 
   // Manual break end button
@@ -1284,6 +1709,11 @@ export function EmployeeAttendancePage() {
       }
       
       await handleSystemCheckIn();
+      
+      // Refetch attendance data after successful check-in to get the created record
+      // Wait a bit for backend to process the record
+      await new Promise(resolve => setTimeout(resolve, 800));
+      await fetchAttendanceData();
     } catch (error) {
       alert('âŒ Failed to check in. Please try again.');
     } finally {
@@ -1355,19 +1785,38 @@ export function EmployeeAttendancePage() {
 
   // Check if employee can check in/out
   const canCheckIn = () => {
-    const todayStatus = getTodayStatus();
-    return todayStatus.checkIn === '-' && !isLoading;
+    // Can only check in if not already checked in today
+    return !systemAttendance.checkedIn && !systemAttendance.checkInTime && !isLoading;
   };
 
   const canCheckOut = () => {
-    const todayStatus = getTodayStatus();
-    return todayStatus.checkIn !== '-' && todayStatus.checkOut === '-' && !isLoading;
+    // Can only check out if already checked in and not checked out yet
+    return systemAttendance.checkedIn && systemAttendance.checkInTime && !systemAttendance.checkOutTime && !isLoading;
+  };
+
+  // Get check-in status message
+  const getCheckInStatus = () => {
+    if (systemAttendance.checkInTime && !systemAttendance.checkOutTime) {
+      return {
+        checked: true,
+        message: `Checked in at ${systemAttendance.checkInTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+        time: systemAttendance.checkInTime
+      };
+    }
+    if (systemAttendance.checkOutTime) {
+      return {
+        checked: false,
+        message: `Checked out at ${systemAttendance.checkOutTime.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: true })}`,
+        time: systemAttendance.checkOutTime
+      };
+    }
+    return { checked: false, message: 'Not checked in yet', time: null };
   };
 
   // Calculate current break duration for active breaks
   const getCurrentBreakDuration = (breakType) => {
     const breakInfo = breakData[breakType];
-    if (breakInfo.active && breakInfo.startTime) {
+    if (breakInfo && breakInfo.active && breakInfo.startTime) {
       const now = new Date();
       return (now - breakInfo.startTime) / (1000 * 60);
     }
@@ -1525,14 +1974,39 @@ export function EmployeeAttendancePage() {
                   <LogIn className="h-5 w-5 text-blue-600" />
                   Attendance
                 </h2>
+                
+                {/* Status Display */}
+                <div className={`mb-4 p-4 rounded-lg border-2 transition-all ${
+                  getCheckInStatus().checked 
+                    ? 'bg-green-50 border-green-300' 
+                    : 'bg-yellow-50 border-yellow-300'
+                }`}>
+                  <div className="flex items-center gap-2 mb-2">
+                    {getCheckInStatus().checked ? (
+                      <>
+                        <CheckCircle className="h-5 w-5 text-green-600" />
+                        <span className="font-semibold text-green-900">You are checked in</span>
+                      </>
+                    ) : (
+                      <>
+                        <AlertCircle className="h-5 w-5 text-yellow-600" />
+                        <span className="font-semibold text-yellow-900">Not checked in</span>
+                      </>
+                    )}
+                  </div>
+                  <p className="text-sm text-gray-700">
+                    {getCheckInStatus().message}
+                  </p>
+                </div>
+                
                 <div className="space-y-3">
                   <button 
                     onClick={handleSystemCheckInWrapper}
                     disabled={!canCheckIn()}
-                    className={`w-full flex items-center justify-center gap-2 p-3 rounded-lg font-medium transition-colors ${
+                    className={`w-full flex items-center justify-center gap-2 p-3 rounded-lg font-medium transition-all ${
                       canCheckIn() 
-                        ? 'bg-green-600 hover:bg-green-700 text-white' 
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        ? 'bg-green-600 hover:bg-green-700 text-white shadow-md hover:shadow-lg' 
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                     }`}
                   >
                     <LogIn className="h-4 w-4" />
@@ -1542,10 +2016,10 @@ export function EmployeeAttendancePage() {
                   <button 
                     onClick={handleSystemCheckOutWrapper}
                     disabled={!canCheckOut()}
-                    className={`w-full flex items-center justify-center gap-2 p-3 rounded-lg font-medium transition-colors ${
+                    className={`w-full flex items-center justify-center gap-2 p-3 rounded-lg font-medium transition-all ${
                       canCheckOut() 
-                        ? 'bg-blue-600 hover:bg-blue-700 text-white' 
-                        : 'bg-gray-100 text-gray-400 cursor-not-allowed'
+                        ? 'bg-blue-600 hover:bg-blue-700 text-white shadow-md hover:shadow-lg' 
+                        : 'bg-gray-200 text-gray-500 cursor-not-allowed'
                     }`}
                   >
                     <LogOut className="h-4 w-4" />
@@ -1573,6 +2047,7 @@ export function EmployeeAttendancePage() {
               </div>
 
               {/* Right Column - Break Management */}
+              {systemAttendance.checkedIn ? (
               <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm">
                 <h2 className="text-lg font-semibold text-gray-900 mb-4 flex items-center gap-2">
                   <Coffee className="h-5 w-5 text-purple-600" />
@@ -1588,19 +2063,19 @@ export function EmployeeAttendancePage() {
                       <div key={breakType.id} className="space-y-2">
                         <button 
                           onClick={() => handleBreakStart(breakType.id)}
-                          disabled={breakInfo.active}
+                          disabled={!breakInfo || breakInfo.active}
                           className={`w-full flex flex-col items-center justify-center p-3 rounded-lg border transition ${
-                            breakInfo.active
+                            breakInfo && breakInfo.active
                               ? `${breakType.color} text-white`
                               : `bg-gray-50 border-gray-200 hover:border-gray-300`
                           }`}
                         >
-                          <breakType.icon className="h-4 w-4 mb-1" />
+                          {breakType.icon && <breakType.icon className="h-4 w-4 mb-1" />}
                           <span className="text-xs font-medium">
-                            {breakInfo.active ? 'Active' : breakType.name}
+                            {breakInfo && breakInfo.active ? 'Active' : breakType.name}
                           </span>
                           <span className="text-xs mt-1">
-                            {breakInfo.active ? 
+                            {breakInfo && breakInfo.active ? 
                               `${Math.round(currentDuration)}m / ${breakType.limit}m` : 
                               `${breakType.limit}m`
                             }
@@ -1610,7 +2085,7 @@ export function EmployeeAttendancePage() {
                           )}
                         </button>
                         
-                        {breakInfo.active && (
+                        {breakInfo && breakInfo.active && (
                           <button 
                             onClick={() => handleManualBreakEnd(breakType.id)}
                             className="w-full flex items-center justify-center p-2 rounded-lg border border-gray-200 hover:border-gray-300 bg-white text-xs"
@@ -1631,7 +2106,7 @@ export function EmployeeAttendancePage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Total Breaks:</span>
                       <span className="font-semibold text-purple-600">
-                        {breakTypes.reduce((total, breakType) => total + breakData[breakType.id].breakCount, 0)}
+                        {breakTypes.reduce((total, breakType) => total + (breakData[breakType.id]?.breakCount || 0), 0)}
                       </span>
                     </div>
                     <div className="flex justify-between">
@@ -1647,7 +2122,7 @@ export function EmployeeAttendancePage() {
                     <div className="flex justify-between">
                       <span className="text-gray-600">Active:</span>
                       <span className="font-semibold text-blue-600">
-                        {breakTypes.filter(breakType => breakData[breakType.id].active).length}
+                        {breakTypes.filter(breakType => breakData[breakType.id]?.active).length}
                       </span>
                     </div>
                   </div>
@@ -1658,7 +2133,7 @@ export function EmployeeAttendancePage() {
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       {breakTypes.map((breakType) => {
                         const breakInfo = breakData[breakType.id];
-                        if (breakInfo.breakCount > 0) {
+                        if (breakInfo && breakInfo.breakCount > 0) {
                           return (
                             <div key={breakType.id} className="flex justify-between items-center bg-white rounded px-2 py-1">
                               <span className="text-gray-600">{breakType.name}:</span>
@@ -1672,6 +2147,13 @@ export function EmployeeAttendancePage() {
                   </div>
                 </div>
               </div>
+              ) : (
+              <div className="bg-white rounded-lg p-6 border border-gray-200 shadow-sm flex flex-col items-center justify-center min-h-64">
+                <Clock className="h-12 w-12 text-gray-300 mb-3" />
+                <h3 className="text-lg font-semibold text-gray-600 mb-2">Break Management</h3>
+                <p className="text-gray-500 text-sm text-center">Check in to manage breaks</p>
+              </div>
+              )}
             </div>
 
             {/* Analytics Graphs */}

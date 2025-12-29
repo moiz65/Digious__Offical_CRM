@@ -1,3 +1,5 @@
+// components/EmployeesProfile.jsx
+
 import React, { useState, useEffect } from 'react';
 import { 
   Users, UserPlus, CheckCircle, XCircle, Clock, 
@@ -19,190 +21,55 @@ import {
 } from 'lucide-react';
 
 const EmployeeProfile = () => {
-  const [employees, setEmployees] = useState([
-    {
-      id: 1,
-      name: "Anthony Lewis",
-      username: "anthony.lewis",
-      role: "HR Manager",
-      email: "anthony.lewis@company.com",
-      phone: "+1 (555) 123-4567",
-      projects: 15,
-      candidates: 78,
-      interviews: 45,
-      hires: 12,
-      attendance: 95,
-      color: "blue",
-      badgeClass: "bg-blue-transparent",
-      status: "active",
-      department: "Human Resources",
-      joiningDate: "2023-01-15",
-      experience: "5 years",
-      location: "New York, USA",
-      performance: "Excellent",
-      skills: ["Recruitment", "Employee Relations", "HR Policies", "Performance Management"],
-      selected: false
-    },
-    {
-      id: 2,
-      name: "Sarah Johnson",
-      username: "sarah.johnson",
-      role: "Sales Executive",
-      email: "sarah.johnson@company.com",
-      phone: "+1 (555) 123-4568",
-      target: 150000,
-      achieved: 175000,
-      dealsClosed: 42,
-      newClients: 18,
-      attendance: 98,
-      color: "green",
-      badgeClass: "bg-green-transparent",
-      status: "active",
-      department: "Sales",
-      joiningDate: "2022-08-20",
-      experience: "3 years",
-      location: "Chicago, USA",
-      performance: "Top Performer",
-      skills: ["Sales Strategy", "Client Relations", "Negotiation", "CRM"],
-      selected: false
-    },
-    {
-      id: 3,
-      name: "Mike Chen",
-      username: "mike.chen",
-      role: "Graphic Designer",
-      email: "mike.chen@company.com",
-      phone: "+1 (555) 123-4569",
-      projects: 18,
-      designs: 42,
-      revisions: 15,
-      attendance: 88,
-      color: "purple",
-      badgeClass: "bg-purple-transparent",
-      status: "active",
-      department: "Design",
-      joiningDate: "2022-03-10",
-      experience: "4 years",
-      location: "Los Angeles, USA",
-      performance: "Good",
-      skills: ["Adobe Creative Suite", "UI/UX Design", "Branding", "Illustration"],
-      selected: false
-    },
-    {
-      id: 4,
-      name: "Emily Davis",
-      username: "emily.davis",
-      role: "Developer",
-      email: "emily.davis@company.com",
-      phone: "+1 (555) 123-4570",
-      projects: 30,
-      projectdone: 245,
-      pullRequests: 45,
-      bugsFixed: 87,
-      attendance: 92,
-      color: "orange",
-      badgeClass: "bg-orange-transparent",
-      status: "active",
-      department: "Development",
-      joiningDate: "2021-11-15",
-      experience: "6 years",
-      location: "Austin, USA",
-      performance: "Excellent",
-      skills: ["JavaScript", "React", "Node.js", "AWS", "TypeScript"],
-      selected: false
-    },
-    {
-      id: 5,
-      name: "Robert Wilson",
-      username: "robert.wilson",
-      role: "Sales Executive",
-      email: "robert.wilson@company.com",
-      phone: "+1 (555) 123-4571",
-      target: 120000,
-      achieved: 85000,
-      dealsClosed: 23,
-      newClients: 9,
-      attendance: 75,
-      color: "green",
-      badgeClass: "bg-green-transparent",
-      status: "inactive",
-      department: "Sales",
-      joiningDate: "2023-02-28",
-      experience: "2 years",
-      location: "Miami, USA",
-      performance: "Average",
-      skills: ["Lead Generation", "Presentation", "Market Research"],
-      selected: false
-    },
-    {
-      id: 6,
-      name: "Lisa Brown",
-      username: "lisa.brown",
-      role: "HR Specialist",
-      email: "lisa.brown@company.com",
-      phone: "+1 (555) 123-4572",
-      projects: 12,
-      candidates: 45,
-      interviews: 28,
-      hires: 8,
-      attendance: 90,
-      color: "blue",
-      badgeClass: "bg-blue-transparent",
-      status: "active",
-      department: "Human Resources",
-      joiningDate: "2022-06-18",
-      experience: "3 years",
-      location: "Seattle, USA",
-      performance: "Good",
-      skills: ["Onboarding", "Training", "Benefits Administration", "Compliance"],
-      selected: false
-    },
-    {
-      id: 7,
-      name: "David Miller",
-      username: "david.miller",
-      role: "Developer",
-      email: "david.miller@company.com",
-      phone: "+1 (555) 123-4573",
-      projects: 28,
-      projectdone: 312,
-      pullRequests: 52,
-      bugsFixed: 103,
-      attendance: 96,
-      color: "orange",
-      badgeClass: "bg-orange-transparent",
-      status: "active",
-      department: "Development",
-      joiningDate: "2021-09-10",
-      experience: "5 years",
-      location: "Denver, USA",
-      performance: "Top Performer",
-      skills: ["Python", "Django", "Docker", "PostgreSQL", "Kubernetes"],
-      selected: false
-    },
-    {
-      id: 8,
-      name: "Jessica Taylor",
-      username: "jessica.taylor",
-      role: "Graphic Designer",
-      email: "jessica.taylor@company.com",
-      phone: "+1 (555) 123-4574",
-      projects: 16,
-      designs: 38,
-      revisions: 12,
-      attendance: 85,
-      color: "purple",
-      badgeClass: "bg-purple-transparent",
-      status: "active",
-      department: "Design",
-      joiningDate: "2023-04-22",
-      experience: "2 years",
-      location: "Portland, USA",
-      performance: "Good",
-      skills: ["Photoshop", "Illustrator", "Figma", "Motion Graphics"],
-      selected: false
-    }
-  ]);
+  const [employees, setEmployees] = useState([]);
+  const [loading, setLoading] = useState(true);
+
+  // Fetch employees from API on component mount
+  useEffect(() => {
+    const fetchEmployees = async () => {
+      try {
+        const API_VERSION = process.env.REACT_APP_API_VERSION || 'v1';
+        const response = await fetch(`http://localhost:5000/api/${API_VERSION}/employees`);
+        const data = await response.json();
+        
+        if (data.success) {
+          // Transform API data to match component format
+          const transformedEmployees = (data.data || []).map((emp) => ({
+            id: emp.id,
+            name: emp.name || 'Unknown',
+            username: emp.employee_id || emp.name?.toLowerCase().replace(/\s+/g, '.') || 'unknown',
+            role: emp.position || 'Employee',
+            email: emp.email || '',
+            phone: emp.phone || '',
+            status: emp.status === 'Active' ? 'active' : 'inactive',
+            department: emp.department || 'Unknown',
+            joiningDate: emp.join_date || new Date().toISOString().split('T')[0],
+            experience: '-- years',
+            location: 'Unknown',
+            performance: 'Good',
+            skills: [],
+            color: ['blue', 'green', 'purple', 'orange'][Math.floor(Math.random() * 4)],
+            badgeClass: ['bg-blue-transparent', 'bg-green-transparent', 'bg-purple-transparent', 'bg-orange-transparent'][Math.floor(Math.random() * 4)],
+            attendance: Math.floor(Math.random() * 30) + 70,
+            selected: false
+          }));
+          
+          setEmployees(transformedEmployees);
+        }
+        setLoading(false);
+      } catch (error) {
+        console.error('Error fetching employees:', error);
+        setLoading(false);
+        setEmployees([]);
+      }
+    };
+
+    fetchEmployees();
+    
+    // Refresh employees every 60 seconds
+    const refreshInterval = setInterval(fetchEmployees, 60000);
+    return () => clearInterval(refreshInterval);
+  }, []);
 
   const [selectedEmployees, setSelectedEmployees] = useState(new Set());
   const [filters, setFilters] = useState({

@@ -1,3 +1,4 @@
+// Frontend/src/pages/HR/EmployeeManagement.jsx
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import HrSidebar from '../../components/HrSidebar';
@@ -63,8 +64,11 @@ const EmployeeManagement = () => {
         const response = await fetch(`${API_URL}/employees/${id}`, {
           method: 'DELETE'
         });
+        
         if (response.ok) {
           setEmployees(employees.filter(emp => emp.id !== id));
+        } else {
+          alert('Failed to delete employee');
         }
       } catch (err) {
         console.error('Error deleting employee:', err);
